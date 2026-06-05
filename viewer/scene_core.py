@@ -647,13 +647,39 @@ def normalize_background(raw: Any) -> dict[str, Any]:
 def normalize_camera(raw: Any) -> dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     preset = str(raw.get("preset", "slow_orbit"))
-    if preset not in {"wide_static", "front_stage", "slow_orbit", "follow_character", "dolly_in", "top_down"}:
+    if preset not in {"wide_static", "front_stage", "slow_orbit", "follow_character", "dolly_in", "top_down", "keyframed"}:
         preset = "slow_orbit"
     return {
         "preset": preset,
         "target": str(raw.get("target", "")),
         "height": max(0.4, float(raw.get("height", 1.35))),
+        "keyframes": normalize_camera_keyframes(raw.get("keyframes", [])),
     }
+
+
+def normalize_camera_keyframes(raw_keyframes: Any) -> list[dict[str, Any]]:
+    keyframes: list[dict[str, Any]] = []
+    items = raw_keyframes if isinstance(raw_keyframes, list) else []
+    for index, raw_keyframe in enumerate(items):
+        if not isinstance(raw_keyframe, dict):
+            continue
+        keyframes.append(
+            {
+                "id": sanitize_id(str(raw_keyframe.get("id", f"c{index}")), f"c{index}"),
+                "time": max(0.0, float(raw_keyframe.get("time", 0.0))),
+                "position": normalize_vec3(raw_keyframe.get("position", [0.0, -4.0, 2.0])),
+                "look_at": normalize_vec3(raw_keyframe.get("look_at", [0.0, 0.0, 1.0])),
+            }
+        )
+    keyframes.sort(key=lambda item: (float(item["time"]), str(item["id"])))
+    seen: set[str] = set()
+    for index, keyframe in enumerate(keyframes):
+        key_id = sanitize_id(str(keyframe["id"]), f"c{index}")
+        if key_id in seen:
+            key_id = f"c{index}"
+        seen.add(key_id)
+        keyframe["id"] = key_id
+    return keyframes
 
 
 def normalize_export(raw: Any) -> dict[str, Any]:

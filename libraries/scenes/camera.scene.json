@@ -1,0 +1,440 @@
+{
+  "format": "gf5_motion_scene",
+  "version": 3,
+  "duration": 12.0,
+  "background": {
+    "color": "#f4f1ea",
+    "image_path": "",
+    "show_grid": true,
+    "show_floor": true
+  },
+  "camera": {
+    "preset": "keyframed",
+    "target": "__origin__",
+    "height": 1.45,
+    "keyframes": [
+      {
+        "id": "c0",
+        "time": 0.0,
+        "position": [
+          0.0,
+          4.147915009698682,
+          2.349
+        ],
+        "look_at": [
+          0.0,
+          0.0,
+          1.044
+        ]
+      },
+      {
+        "id": "c1",
+        "time": 0.0,
+        "position": [
+          4.240740966796875,
+          -1.7993828667534721,
+          2.349
+        ],
+        "look_at": [
+          0.0,
+          0.0,
+          1.044
+        ]
+      },
+      {
+        "id": "c2",
+        "time": 6.1000000000000005,
+        "position": [
+          -5.0,
+          0.0,
+          2.349
+        ],
+        "look_at": [
+          0.0,
+          0.0,
+          1.044
+        ]
+      }
+    ]
+  },
+  "export": {
+    "fps": 24,
+    "width": 960,
+    "height": 540
+  },
+  "characters": [
+    {
+      "id": "host",
+      "label": "Host",
+      "color": "#2f7f7b",
+      "proxy_asset": "SMPL-24 Proxy",
+      "avatar_asset": "",
+      "track": [
+        {
+          "clip": "Preset: Idle stand",
+          "start": 0.0,
+          "duration": 1.0,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.3,
+          "blend_out": 0.3
+        },
+        {
+          "clip": "Preset: Start walking",
+          "start": 1.0,
+          "duration": 1.2,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.36,
+          "blend_out": 0.36
+        },
+        {
+          "clip": "Preset: Walk cycle",
+          "start": 2.2,
+          "duration": 2.7,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Preset: Stop walking",
+          "start": 4.9,
+          "duration": 1.2,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.36,
+          "blend_out": 0.36
+        },
+        {
+          "clip": "Preset: Present to side",
+          "start": 6.3,
+          "duration": 2.0,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Preset: Right-hand wave",
+          "start": 8.8,
+          "duration": 2.2,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        }
+      ],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            -2.0,
+            -0.45,
+            0.0
+          ],
+          "facing_degrees": 76.0
+        },
+        {
+          "id": "k1",
+          "time": 2.2,
+          "position": [
+            -1.25,
+            -0.38,
+            0.0
+          ],
+          "facing_degrees": 78.0
+        },
+        {
+          "id": "k2",
+          "time": 5.8,
+          "position": [
+            -0.35,
+            -0.22,
+            0.0
+          ],
+          "facing_degrees": 64.0
+        },
+        {
+          "id": "k3",
+          "time": 12.0,
+          "position": [
+            -0.35,
+            -0.22,
+            0.0
+          ],
+          "facing_degrees": 36.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k1",
+          "to": "k2",
+          "mode": "curve",
+          "facing": "manual"
+        },
+        {
+          "from": "k2",
+          "to": "k3",
+          "mode": "hold",
+          "facing": "manual"
+        }
+      ]
+    },
+    {
+      "id": "guest",
+      "label": "Guest",
+      "color": "#3f7db8",
+      "proxy_asset": "SMPL-24 Proxy",
+      "avatar_asset": "",
+      "track": [
+        {
+          "clip": "Preset: Idle stand",
+          "start": 0.0,
+          "duration": 1.4,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.42,
+          "blend_out": 0.42
+        },
+        {
+          "clip": "Preset: Start walking",
+          "start": 1.4,
+          "duration": 1.2,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.36,
+          "blend_out": 0.36
+        },
+        {
+          "clip": "Preset: Walk cycle",
+          "start": 2.6,
+          "duration": 2.4,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Preset: Stop walking",
+          "start": 5.0,
+          "duration": 1.2,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.36,
+          "blend_out": 0.36
+        },
+        {
+          "clip": "Preset: Clap twice",
+          "start": 7.0,
+          "duration": 1.8,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Preset: Bow",
+          "start": 9.2,
+          "duration": 2.0,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        }
+      ],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            2.0,
+            0.55,
+            0.0
+          ],
+          "facing_degrees": -112.0
+        },
+        {
+          "id": "k1",
+          "time": 2.6,
+          "position": [
+            1.25,
+            0.36,
+            0.0
+          ],
+          "facing_degrees": -112.0
+        },
+        {
+          "id": "k2",
+          "time": 5.8,
+          "position": [
+            0.55,
+            0.06,
+            0.0
+          ],
+          "facing_degrees": -128.0
+        },
+        {
+          "id": "k3",
+          "time": 12.0,
+          "position": [
+            0.55,
+            0.06,
+            0.0
+          ],
+          "facing_degrees": -54.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k1",
+          "to": "k2",
+          "mode": "curve",
+          "facing": "manual"
+        },
+        {
+          "from": "k2",
+          "to": "k3",
+          "mode": "hold",
+          "facing": "manual"
+        }
+      ]
+    },
+    {
+      "id": "observer",
+      "label": "Observer",
+      "color": "#d6a72f",
+      "proxy_asset": "SMPL-24 Proxy",
+      "avatar_asset": "",
+      "track": [
+        {
+          "clip": "Preset: Idle stand",
+          "start": 0.0,
+          "duration": 1.8,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Preset: Look around",
+          "start": 1.8,
+          "duration": 3.0,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Preset: Clap twice",
+          "start": 5.4,
+          "duration": 1.8,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Preset: Celebrate",
+          "start": 8.0,
+          "duration": 2.4,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        }
+      ],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            -0.15,
+            1.05,
+            0.0
+          ],
+          "facing_degrees": 178.0
+        },
+        {
+          "id": "k1",
+          "time": 4.5,
+          "position": [
+            -0.15,
+            1.05,
+            0.0
+          ],
+          "facing_degrees": 154.0
+        },
+        {
+          "id": "k2",
+          "time": 8.0,
+          "position": [
+            -0.05,
+            0.96,
+            0.0
+          ],
+          "facing_degrees": 145.0
+        },
+        {
+          "id": "k3",
+          "time": 12.0,
+          "position": [
+            0.05,
+            0.92,
+            0.0
+          ],
+          "facing_degrees": 142.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "hold",
+          "facing": "manual"
+        },
+        {
+          "from": "k1",
+          "to": "k2",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k2",
+          "to": "k3",
+          "mode": "hold",
+          "facing": "manual"
+        }
+      ]
+    }
+  ]
+}

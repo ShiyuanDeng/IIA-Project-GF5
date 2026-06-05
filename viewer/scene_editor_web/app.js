@@ -25,6 +25,7 @@ const CAMERA_PRESETS = [
   ["front_stage", "Front stage"],
   ["follow_character", "Follow avatar"],
   ["dolly_in", "Dolly in"],
+  ["keyframed", "Keyframed"],
   ["top_down", "Top down"],
 ];
 const CAMERA_TARGET_PRESETS = new Set(["slow_orbit", "follow_character", "dolly_in"]);
@@ -332,6 +333,7 @@ function restoreSceneSnapshot(snapshot) {
   pruneHiddenCharacters();
   if (!hasCharacterId(app.selectedCharacterId)) app.selectedCharacterId = app.scene.characters[0]?.id || null;
   if (app.selection.characterId && !hasCharacterId(app.selection.characterId)) app.selection = { type: "scene" };
+  if (app.selection.type === "camera_key" && !cameraKeyframes()[app.selection.index]) app.selection = { type: "scene" };
   app.currentTime = clamp(app.currentTime, 0, app.scene.duration);
   app.playing = false;
   renderAll();
@@ -391,6 +393,7 @@ function normalizeRootPosition(position) {
 
 function normalizeEditorScene() {
   if (!Array.isArray(app.scene?.characters)) return;
+  sceneCamera();
   const proxyAsset = defaultProxyAsset();
   app.scene.characters.forEach((character, index) => {
     character.color = normalizeCharacterColor(character.color, index);
@@ -408,6 +411,11 @@ function normalizeEditorScene() {
       clip.blend_out = normalizedClipBlend(clip, "blend_out");
     });
   });
+}
+
+function normalizeCameraPosition(value, fallback = [0, 0, 0]) {
+  const source = Array.isArray(value) ? value : fallback;
+  return [0, 1, 2].map((index) => Number(source[index] ?? fallback[index] ?? 0) || 0);
 }
 
 function characterColor(character, index = 0) {
@@ -659,6 +667,7 @@ function sceneCamera() {
       preset: "slow_orbit",
       target: CAMERA_ORIGIN_TARGET,
       height: 1.35,
+      keyframes: [],
     };
   }
   if (!CAMERA_PRESETS.some(([value]) => value === app.scene.camera.preset)) app.scene.camera.preset = "slow_orbit";
@@ -669,7 +678,27 @@ function sceneCamera() {
   ) {
     app.scene.camera.target = CAMERA_ORIGIN_TARGET;
   }
+  app.scene.camera.keyframes = cameraKeyframes(app.scene.camera);
   return app.scene.camera;
+}
+
+function cameraKeyframes(camera = sceneCamera()) {
+  if (!Array.isArray(camera.keyframes)) camera.keyframes = [];
+  camera.keyframes.forEach((key, index) => {
+    if (!key.id) key.id = `c${index}`;
+    key.time = clamp(Number(key.time) || 0, 0, app.scene?.duration || 0);
+    key.position = normalizeCameraPosition(key.position, [0, -4, 2]);
+    key.look_at = normalizeCameraPosition(key.look_at, [0, 0, 1]);
+  });
+  camera.keyframes.sort((a, b) => Number(a.time || 0) - Number(b.time || 0));
+  return camera.keyframes;
+}
+
+function nextCameraKeyId(camera = sceneCamera()) {
+  const ids = new Set(cameraKeyframes(camera).map((key) => key.id));
+  let index = camera.keyframes.length;
+  while (ids.has(`c${index}`)) index += 1;
+  return `c${index}`;
 }
 
 function sceneExport() {
@@ -821,6 +850,13 @@ function selectedRootRef() {
   return key ? { character, key } : null;
 }
 
+function selectedCameraKeyRef() {
+  if (app.selection.type !== "camera_key") return null;
+  const camera = sceneCamera();
+  const key = cameraKeyframes(camera)[app.selection.index];
+  return key ? { camera, key } : null;
+}
+
 function selectClipByRef(character, clip) {
   const index = sortedClips(character).indexOf(clip);
   setSelection({ type: "clip", characterId: character.id, index: Math.max(0, index) });
@@ -829,6 +865,11 @@ function selectClipByRef(character, clip) {
 function selectRootById(character, keyId) {
   const index = sortedKeys(character).findIndex((key) => key.id === keyId);
   setSelection({ type: "root", characterId: character.id, index: Math.max(0, index) });
+}
+
+function selectCameraKeyById(keyId) {
+  const index = cameraKeyframes().findIndex((key) => key.id === keyId);
+  setSelection({ type: "camera_key", index: Math.max(0, index) });
 }
 
 function replaceSelectedClipMotion(label) {
@@ -1754,6 +1795,7 @@ function drawClipBoundaryTicks(svg, character, color) {
 function drawCameraOnStage(svg) {
   const samples = cameraTrajectorySamples();
   drawCameraTrajectory(svg, samples);
+  drawCameraKeyframesOnStage(svg);
   const pose = cameraPoseAt(app.currentTime);
   const cameraPoint = worldToStage([pose.position[0], pose.position[1], 0]);
   const targetPoint = worldToStage([pose.lookAt[0], pose.lookAt[1], 0]);
@@ -1764,6 +1806,46 @@ function drawCameraOnStage(svg) {
   const marker = makeSvg("g", { transform: `translate(${cameraPoint.x} ${cameraPoint.y}) rotate(${angle})`, class: "stage-camera-current" });
   marker.appendChild(makeSvg("path", { d: "M 0 -13 L -9 9 L 0 5 L 9 9 Z", class: "stage-camera-body" }));
   svg.appendChild(marker);
+}
+
+function drawCameraKeyframesOnStage(svg) {
+  const camera = sceneCamera();
+  if (camera.preset !== "keyframed") return;
+  cameraKeyframes(camera).forEach((key, index) => {
+    const cameraPoint = worldToStage(key.position);
+    const targetPoint = worldToStage(key.look_at);
+    const selected = app.selection.type === "camera_key" && app.selection.index === index;
+    svg.appendChild(makeSvg("line", {
+      x1: cameraPoint.x,
+      y1: cameraPoint.y,
+      x2: targetPoint.x,
+      y2: targetPoint.y,
+      class: `stage-camera-key-line ${selected ? "selected" : ""}`,
+    }));
+    svg.appendChild(makeSvg("circle", {
+      cx: targetPoint.x,
+      cy: targetPoint.y,
+      r: 7,
+      class: `stage-camera-target-key ${selected ? "selected" : ""}`,
+      "data-kind": "stage-camera-target",
+      "data-index": index,
+    }));
+    svg.appendChild(makeSvg("circle", {
+      cx: cameraPoint.x,
+      cy: cameraPoint.y,
+      r: 8,
+      class: `stage-camera-key ${selected ? "selected" : ""}`,
+      "data-kind": "stage-camera-key",
+      "data-index": index,
+    }));
+    svg.appendChild(makeSvg("text", {
+      x: cameraPoint.x + 10,
+      y: cameraPoint.y - 10,
+      class: "stage-camera-key-label",
+      "data-kind": "stage-camera-key",
+      "data-index": index,
+    }, [document.createTextNode(`${key.time.toFixed(1)}s`)]));
+  });
 }
 
 function cameraTrajectorySamples() {
@@ -1821,6 +1903,10 @@ function sceneCenterAndRadius() {
 
 function cameraPoseAt(time) {
   const camera = sceneCamera();
+  if (camera.preset === "keyframed") {
+    const pose = keyframedCameraPoseAt(camera, time);
+    if (pose) return pose;
+  }
   const { center, radius } = sceneCenterAndRadius();
   const height = Math.max(0.4, Number(camera.height) || 1.35);
   let lookAt = [center[0], center[1], Math.max(0.6, height * 0.72)];
@@ -1846,6 +1932,32 @@ function cameraPoseAt(time) {
     position = [lookAt[0] + 0.45 * radius, lookAt[1] + 1.15 * radius, lookAt[2] + height * 0.95];
   }
   return { position, lookAt };
+}
+
+function keyframedCameraPoseAt(camera, time) {
+  const keys = cameraKeyframes(camera);
+  if (!keys.length) return null;
+  if (time <= keys[0].time) return cameraPoseFromKey(keys[0]);
+  if (time >= keys[keys.length - 1].time) return cameraPoseFromKey(keys[keys.length - 1]);
+  for (let index = 0; index < keys.length - 1; index += 1) {
+    const first = keys[index];
+    const second = keys[index + 1];
+    if (first.time <= time && time <= second.time) {
+      const alpha = (time - first.time) / Math.max(0.001, second.time - first.time);
+      return {
+        position: lerpPosition(first.position, second.position, alpha),
+        lookAt: lerpPosition(first.look_at, second.look_at, alpha),
+      };
+    }
+  }
+  return cameraPoseFromKey(keys[keys.length - 1]);
+}
+
+function cameraPoseFromKey(key) {
+  return {
+    position: [...key.position],
+    lookAt: [...key.look_at],
+  };
 }
 
 function cameraTargetLookAt(camera, time, height) {
@@ -2947,6 +3059,7 @@ function renderInspector() {
   const selection = app.selection;
   if (selection.type === "clip") return renderClipInspector(panel, selection);
   if (selection.type === "root") return renderRootInspector(panel, selection);
+  if (selection.type === "camera_key") return renderCameraKeyInspector(panel, selection);
   if (selection.type === "character") return renderCharacterInspector(panel, selection);
   return renderSceneInspector(panel);
 }
@@ -2981,7 +3094,15 @@ function renderMotionPreviewPanel() {
 }
 
 function renderSceneInspector(panel) {
-  panel.innerHTML = "";
+  const camera = sceneCamera();
+  const keyCount = cameraKeyframes(camera).length;
+  panel.innerHTML = `
+    <div class="field"><label>Camera path</label><div class="readonly-value">${camera.preset === "keyframed" ? `${keyCount} key${keyCount === 1 ? "" : "s"}` : "Use Keyframed camera preset to edit camera keys."}</div></div>
+    <div class="button-row">
+      <button id="addCameraKeyAtPlayhead" ${camera.preset === "keyframed" ? "" : "disabled"}>Add Camera Key</button>
+    </div>
+  `;
+  $("#addCameraKeyAtPlayhead").addEventListener("click", addCameraKeyAtPlayhead);
 }
 
 function renderExportPanel() {
@@ -3019,7 +3140,20 @@ function renderExportPanel() {
     <div id="exportStatus" class="export-status">${formatExportStatus()}</div>
   `;
   renderShotPreview();
-  $("#cameraPreset").addEventListener("change", (event) => { pushUndoSnapshot(); camera.preset = event.target.value; renderAll(); });
+  $("#cameraPreset").addEventListener("change", (event) => {
+    const currentPose = cameraPoseAt(app.currentTime);
+    pushUndoSnapshot();
+    camera.preset = event.target.value;
+    if (camera.preset === "keyframed" && !cameraKeyframes(camera).length) {
+      camera.keyframes.push({
+        id: nextCameraKeyId(camera),
+        time: app.currentTime,
+        position: [...currentPose.position],
+        look_at: [...currentPose.lookAt],
+      });
+    }
+    renderAll();
+  });
   $("#cameraTarget").addEventListener("change", (event) => { pushUndoSnapshot(); camera.target = event.target.value; renderAll(); });
   $("#cameraHeight").addEventListener("change", (event) => { pushUndoSnapshot(); camera.height = Math.max(0.4, Number(event.target.value)); renderAll(); });
   $("#exportFps").addEventListener("change", (event) => { pushUndoSnapshot(); exportSettings.fps = clamp(Number(event.target.value), 1, FINAL_AVATAR_MAX_FPS); renderAll(); });
@@ -3223,6 +3357,42 @@ function renderRootInspector(panel, selection) {
   $("#snapKeyToPlayhead").addEventListener("click", () => { pushUndoSnapshot(); key.time = app.currentTime; renderAll(); });
 }
 
+function renderCameraKeyInspector(panel, selection) {
+  const camera = sceneCamera();
+  const key = cameraKeyframes(camera)[selection.index];
+  if (!key) return renderSceneInspector(panel);
+  panel.innerHTML = `
+    <div class="field"><label>Time</label><input id="cameraKeyTime" type="number" min="0" step="0.1" value="${key.time}"></div>
+    <div class="field"><label>Camera X</label><input id="cameraKeyX" type="number" step="0.05" value="${key.position[0]}"></div>
+    <div class="field"><label>Camera Y</label><input id="cameraKeyY" type="number" step="0.05" value="${key.position[1]}"></div>
+    <div class="field"><label>Camera Z</label><input id="cameraKeyZ" type="number" step="0.05" value="${key.position[2]}"></div>
+    <div class="field"><label>Look-at X</label><input id="cameraLookX" type="number" step="0.05" value="${key.look_at[0]}"></div>
+    <div class="field"><label>Look-at Y</label><input id="cameraLookY" type="number" step="0.05" value="${key.look_at[1]}"></div>
+    <div class="field"><label>Look-at Z</label><input id="cameraLookZ" type="number" step="0.05" value="${key.look_at[2]}"></div>
+    <div class="button-row">
+      <button id="snapCameraKeyToPlayhead">Move To Playhead</button>
+      <button id="duplicateCameraKey">Duplicate</button>
+    </div>
+  `;
+  $("#cameraKeyTime").addEventListener("change", (event) => {
+    pushUndoSnapshot();
+    key.time = clamp(Number(event.target.value), 0, app.scene.duration);
+    selectCameraKeyById(key.id);
+  });
+  $("#cameraKeyX").addEventListener("change", (event) => { pushUndoSnapshot(); key.position[0] = Number(event.target.value) || 0; renderAll(); });
+  $("#cameraKeyY").addEventListener("change", (event) => { pushUndoSnapshot(); key.position[1] = Number(event.target.value) || 0; renderAll(); });
+  $("#cameraKeyZ").addEventListener("change", (event) => { pushUndoSnapshot(); key.position[2] = Number(event.target.value) || 0; renderAll(); });
+  $("#cameraLookX").addEventListener("change", (event) => { pushUndoSnapshot(); key.look_at[0] = Number(event.target.value) || 0; renderAll(); });
+  $("#cameraLookY").addEventListener("change", (event) => { pushUndoSnapshot(); key.look_at[1] = Number(event.target.value) || 0; renderAll(); });
+  $("#cameraLookZ").addEventListener("change", (event) => { pushUndoSnapshot(); key.look_at[2] = Number(event.target.value) || 0; renderAll(); });
+  $("#snapCameraKeyToPlayhead").addEventListener("click", () => {
+    pushUndoSnapshot();
+    key.time = app.currentTime;
+    selectCameraKeyById(key.id);
+  });
+  $("#duplicateCameraKey").addEventListener("click", () => duplicateCameraKey(key));
+}
+
 function segmentModeSelectHtml(label, id, value) {
   return `
     <div class="field segment-mode-field"><label>${label}</label><select id="${id}">
@@ -3286,6 +3456,21 @@ function stagePointerDown(event) {
     return;
   }
   const point = svgPoint(svg, event);
+  if (kind === "stage-camera-key" || kind === "stage-camera-target") {
+    const index = Number(target.dataset.index);
+    const key = cameraKeyframes()[index];
+    if (!key) return;
+    setSelection({ type: "camera_key", index });
+    app.drag = {
+      mode: kind,
+      index,
+      keyId: key.id,
+      startPoint: point,
+      original: JSON.parse(JSON.stringify(key)),
+    };
+    svg.setPointerCapture?.(event.pointerId);
+    return;
+  }
   let character = characterById(target.dataset.character);
   let index = Number(target.dataset.index);
   let cycleRefs = [];
@@ -3390,6 +3575,11 @@ function playheadSnapTargets() {
     }
     for (const key of sortedKeys(character)) {
       addPlayheadSnapTarget(targets, key.time, "Waypoint", 1);
+    }
+  }
+  if (sceneCamera().preset === "keyframed") {
+    for (const key of cameraKeyframes()) {
+      addPlayheadSnapTarget(targets, key.time, "Camera key", 1);
     }
   }
   return targets;
@@ -3677,6 +3867,10 @@ function dragStage(event) {
     dragStagePan(event);
     return;
   }
+  if (app.drag.mode === "stage-camera-key" || app.drag.mode === "stage-camera-target") {
+    dragCameraKeyOnStage(event);
+    return;
+  }
   const character = characterById(app.drag.characterId);
   const key = character.root_keys.find((candidate) => candidate.id === app.drag.keyId) || sortedKeys(character)[app.drag.index];
   const point = svgPoint($("#stageSvg"), event);
@@ -3690,6 +3884,21 @@ function dragStage(event) {
     const dy = origin.y - point.y;
     key.facing_degrees = (Math.atan2(dx, dy) * 180) / Math.PI;
   }
+  renderAll();
+}
+
+function dragCameraKeyOnStage(event) {
+  const camera = sceneCamera();
+  const key = cameraKeyframes(camera).find((candidate) => candidate.id === app.drag.keyId) || camera.keyframes[app.drag.index];
+  if (!key) return;
+  const point = svgPoint($("#stageSvg"), event);
+  recordDragEdit();
+  if (app.drag.mode === "stage-camera-key") {
+    key.position = stageToWorld(point, key.position?.[2] || 0);
+  } else {
+    key.look_at = stageToWorld(point, key.look_at?.[2] || 0);
+  }
+  app.selection.index = Math.max(0, cameraKeyframes(camera).findIndex((candidate) => candidate.id === key.id));
   renderAll();
 }
 
@@ -3871,6 +4080,21 @@ function addWaypointAtPlayhead() {
   setSelection({ type: "root", characterId: character.id, index: Math.max(0, index) });
 }
 
+function addCameraKeyAtPlayhead() {
+  const camera = sceneCamera();
+  if (camera.preset !== "keyframed") return;
+  const pose = cameraPoseAt(app.currentTime);
+  const id = nextCameraKeyId(camera);
+  pushUndoSnapshot();
+  camera.keyframes.push({
+    id,
+    time: app.currentTime,
+    position: [...pose.position],
+    look_at: [...pose.lookAt],
+  });
+  selectCameraKeyById(id);
+}
+
 function faceSelectedWaypointAlongPath() {
   if (app.selection.type !== "root") return;
   const character = characterById(app.selection.characterId);
@@ -3904,6 +4128,27 @@ function duplicateRootKey(character, key) {
   selectRootById(character, clone.id);
 }
 
+function duplicateCameraKey(key) {
+  const camera = sceneCamera();
+  pushUndoSnapshot();
+  const clone = JSON.parse(JSON.stringify(key));
+  clone.id = nextCameraKeyId(camera);
+  const timeOffset = key.time >= app.scene.duration - 0.2 ? -0.2 : 0.2;
+  clone.time = clamp(snapTime(key.time + timeOffset), 0, app.scene.duration);
+  clone.position = [key.position[0] + 0.15, key.position[1] + 0.15, Number(key.position?.[2] || 0)];
+  clone.look_at = [key.look_at[0] + 0.15, key.look_at[1] + 0.15, Number(key.look_at?.[2] || 0)];
+  camera.keyframes.push(clone);
+  selectCameraKeyById(clone.id);
+}
+
+function deleteCameraKey(key) {
+  const camera = sceneCamera();
+  if (cameraKeyframes(camera).length <= 1) return;
+  pushUndoSnapshot();
+  camera.keyframes = camera.keyframes.filter((candidate) => candidate !== key);
+  setSelection({ type: "scene" });
+}
+
 function selectedDeleteAction() {
   const clipRef = selectedClipRef();
   if (clipRef) {
@@ -3918,6 +4163,13 @@ function selectedDeleteAction() {
       : { enabled: false, label: "Keep at least one waypoint" };
   }
 
+  const cameraKeyRef = selectedCameraKeyRef();
+  if (cameraKeyRef) {
+    return cameraKeyframes(cameraKeyRef.camera).length > 1
+      ? { enabled: true, label: "Delete camera key" }
+      : { enabled: false, label: "Keep at least one camera key" };
+  }
+
   if (app.selection.type === "character" && app.selection.characterId) {
     const character = characterById(app.selection.characterId);
     const canDelete = Boolean(character && app.scene.characters.length > 1);
@@ -3927,7 +4179,7 @@ function selectedDeleteAction() {
     };
   }
 
-  return { enabled: false, label: "Select an avatar, motion clip, or waypoint to delete" };
+  return { enabled: false, label: "Select an avatar, motion clip, waypoint, or camera key to delete" };
 }
 
 function deleteSelection() {
@@ -3940,6 +4192,12 @@ function deleteSelection() {
   const rootRef = selectedRootRef();
   if (rootRef) {
     deleteRootKey(rootRef.character, rootRef.key);
+    return true;
+  }
+
+  const cameraKeyRef = selectedCameraKeyRef();
+  if (cameraKeyRef) {
+    deleteCameraKey(cameraKeyRef.key);
     return true;
   }
 
@@ -3960,6 +4218,12 @@ function duplicateSelection() {
   const rootRef = selectedRootRef();
   if (rootRef) {
     duplicateRootKey(rootRef.character, rootRef.key);
+    return true;
+  }
+
+  const cameraKeyRef = selectedCameraKeyRef();
+  if (cameraKeyRef) {
+    duplicateCameraKey(cameraKeyRef.key);
     return true;
   }
 

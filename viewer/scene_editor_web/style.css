@@ -1593,6 +1593,51 @@ body.dragging-motion .timeline-scroller {
   stroke-linejoin: round;
 }
 
+.stage-camera-key-line {
+  stroke: rgba(178, 59, 54, 0.52);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+.stage-camera-key-line.selected {
+  stroke: #7f2521;
+  stroke-width: 2;
+}
+
+.stage-camera-key {
+  fill: #ffffff;
+  stroke: #b23b36;
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.stage-camera-key.selected {
+  fill: #b23b36;
+  stroke: #ffffff;
+  stroke-width: 2.4;
+}
+
+.stage-camera-target-key {
+  fill: #ffffff;
+  stroke: #c6732c;
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.stage-camera-target-key.selected {
+  fill: #c6732c;
+  stroke: #ffffff;
+  stroke-width: 2.4;
+}
+
+.stage-camera-key-label {
+  fill: #7f2521;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
 .shot-floor {
   fill: rgba(255, 255, 255, 0.38);
   stroke: rgba(36, 43, 45, 0.12);

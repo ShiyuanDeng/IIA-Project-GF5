@@ -290,6 +290,10 @@ def camera_pose(scene: dict[str, Any], scene_time: float) -> tuple[Vec3, Vec3]:
     center, radius = scene_center_and_radius(scene)
     height = max(0.4, float(camera.get("height", 1.35)))
     preset = str(camera.get("preset", "slow_orbit"))
+    if preset == "keyframed":
+        keyframed_pose = keyframed_camera_pose(camera, scene_time)
+        if keyframed_pose is not None:
+            return keyframed_pose
     look_at = (center[0], center[1], max(0.6, height * 0.72))
     target_look_at = camera_target_look_at(scene, camera, scene_time, height)
     if preset == "front_stage":
@@ -316,6 +320,38 @@ def camera_pose(scene: dict[str, Any], scene_time: float) -> tuple[Vec3, Vec3]:
     else:
         position = vec_add(look_at, (0.45 * radius, 1.15 * radius, height * 0.95))
     return position, look_at
+
+
+def keyframed_camera_pose(camera: dict[str, Any], scene_time: float) -> tuple[Vec3, Vec3] | None:
+    keys = sorted(
+        [key for key in camera.get("keyframes", []) if isinstance(key, dict)],
+        key=lambda key: (float(key.get("time", 0.0)), str(key.get("id", ""))),
+    )
+    if not keys:
+        return None
+    if scene_time <= float(keys[0].get("time", 0.0)):
+        return camera_key_pose(keys[0])
+    if scene_time >= float(keys[-1].get("time", 0.0)):
+        return camera_key_pose(keys[-1])
+    for first, second in zip(keys[:-1], keys[1:]):
+        t0 = float(first.get("time", 0.0))
+        t1 = float(second.get("time", 0.0))
+        if t0 <= scene_time <= t1:
+            alpha = (scene_time - t0) / max(1e-6, t1 - t0)
+            first_position, first_look_at = camera_key_pose(first)
+            second_position, second_look_at = camera_key_pose(second)
+            return lerp_vec3(first_position, second_position, alpha), lerp_vec3(first_look_at, second_look_at, alpha)
+    return camera_key_pose(keys[-1])
+
+
+def camera_key_pose(key: dict[str, Any]) -> tuple[Vec3, Vec3]:
+    return camera_vec3(key.get("position", [0.0, -4.0, 2.0])), camera_vec3(key.get("look_at", [0.0, 0.0, 1.0]))
+
+
+def camera_vec3(value: Any) -> Vec3:
+    if not isinstance(value, (list, tuple)):
+        return (0.0, 0.0, 0.0)
+    return tuple(float(value[index]) if index < len(value) else 0.0 for index in range(3))  # type: ignore[return-value]
 
 
 def camera_target_look_at(scene: dict[str, Any], camera: dict[str, Any], scene_time: float, height: float) -> Vec3 | None:

@@ -62,6 +62,7 @@ CAMERA_PRESETS = (
     "front_stage",
     "follow_character",
     "dolly_in",
+    "keyframed",
     "top_down",
 )
 
