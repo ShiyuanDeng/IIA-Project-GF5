@@ -1478,6 +1478,13 @@ body.dragging-motion .timeline-scroller {
   cursor: move;
 }
 
+.stage-z-label {
+  font-size: 10px;
+  fill: #52615c;
+  pointer-events: none;
+  user-select: none;
+}
+
 .stage-stack-badge {
   fill: #242b2d;
   stroke: #fff;
