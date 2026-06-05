@@ -381,12 +381,24 @@ function randomAvatarColor() {
   return choices[Math.floor(Math.random() * choices.length)].value;
 }
 
+function normalizeRootPosition(position) {
+  const source = Array.isArray(position) ? position : [];
+  return [0, 1, 2].map((axis) => {
+    const value = Number(source[axis]);
+    return Number.isFinite(value) ? value : 0;
+  });
+}
+
 function normalizeEditorScene() {
   if (!Array.isArray(app.scene?.characters)) return;
   const proxyAsset = defaultProxyAsset();
   app.scene.characters.forEach((character, index) => {
     character.color = normalizeCharacterColor(character.color, index);
     character.proxy_asset = proxyAsset;
+    if (!Array.isArray(character.root_keys)) character.root_keys = [];
+    character.root_keys.forEach((key) => {
+      key.position = normalizeRootPosition(key.position);
+    });
     if (!Array.isArray(character.track)) character.track = [];
     character.track.forEach((clip) => {
       const motion = motionByLabel(clip.clip);
@@ -1540,9 +1552,13 @@ function cycleStageWaypointSelection(compactRefs) {
   setSelection({ type: "root", characterId: next.character.id, index: next.index });
 }
 
-function stageToWorld(point) {
+function stageToWorld(point, z = 0) {
   const size = stageViewportSize();
-  return [(point.x - size.width / 2) / STAGE_SCALE, (size.height / 2 - point.y) / STAGE_SCALE, 0];
+  return [
+    (point.x - size.width / 2) / STAGE_SCALE,
+    (size.height / 2 - point.y) / STAGE_SCALE,
+    Number.isFinite(Number(z)) ? Number(z) : 0,
+  ];
 }
 
 function zoomStageBy(factor) {
@@ -1638,6 +1654,17 @@ function drawCharacterPath(svg, character, index) {
       "data-index": keyIndex,
     });
     svg.appendChild(keyNode);
+    const zValue = Number(key.position?.[2] || 0);
+    if (Math.abs(zValue) > 0.001) {
+      svg.appendChild(makeSvg("text", {
+        x: p.x + 10,
+        y: p.y + 18,
+        class: "stage-z-label",
+        "data-kind": "stage-key",
+        "data-character": character.id,
+        "data-index": keyIndex,
+      }, [document.createTextNode(`z=${zValue.toFixed(2)}`)]));
+    }
     const angle = (key.facing_degrees * Math.PI) / 180;
     const end = { x: p.x + Math.sin(angle) * 32, y: p.y - Math.cos(angle) * 32 };
     svg.appendChild(makeSvg("line", {
@@ -3154,6 +3181,7 @@ function renderRootInspector(panel, selection) {
     <div class="field"><label>Time</label><input id="keyTime" type="number" min="0" step="0.1" value="${key.time}"></div>
     <div class="field"><label>X</label><input id="keyX" type="number" step="0.05" value="${key.position[0]}"></div>
     <div class="field"><label>Y</label><input id="keyY" type="number" step="0.05" value="${key.position[1]}"></div>
+    <div class="field"><label>Z</label><input id="keyZ" type="number" step="0.05" value="${key.position?.[2] || 0}"></div>
     <div class="field">
       <label>Facing degrees</label>
       <div class="inline-field-action">
@@ -3169,6 +3197,13 @@ function renderRootInspector(panel, selection) {
   $("#keyTime").addEventListener("change", (event) => { pushUndoSnapshot(); key.time = clamp(Number(event.target.value), 0, app.scene.duration); renderAll(); });
   $("#keyX").addEventListener("change", (event) => { pushUndoSnapshot(); key.position[0] = Number(event.target.value); renderAll(); });
   $("#keyY").addEventListener("change", (event) => { pushUndoSnapshot(); key.position[1] = Number(event.target.value); renderAll(); });
+  $("#keyZ").addEventListener("change", (event) => {
+    pushUndoSnapshot();
+    if (!Array.isArray(key.position)) key.position = [0, 0, 0];
+    while (key.position.length < 3) key.position.push(0);
+    key.position[2] = Number(event.target.value) || 0;
+    renderAll();
+  });
   $("#keyFacing").addEventListener("change", (event) => { pushUndoSnapshot(); key.facing_degrees = Number(event.target.value); renderAll(); });
   $("#facePathButton").addEventListener("click", faceSelectedWaypointAlongPath);
   if (segmentRefs?.incoming) {
@@ -3647,7 +3682,7 @@ function dragStage(event) {
   const point = svgPoint($("#stageSvg"), event);
   if (app.drag.mode === "stage-key") {
     recordDragEdit();
-    key.position = stageToWorld(point);
+    key.position = stageToWorld(point, key.position?.[2] || 0);
   } else if (app.drag.mode === "stage-facing") {
     recordDragEdit();
     const origin = worldToStage(key.position);
@@ -3810,7 +3845,7 @@ function duplicateCharacter(character) {
   clone.label = uniqueCharacterLabel(character.label);
   clone.root_keys = clone.root_keys.map((key) => ({
     ...key,
-    position: [key.position[0] + 0.35, key.position[1] - 0.25, key.position[2] || 0],
+    position: [key.position[0] + 0.35, key.position[1] - 0.25, Number(key.position?.[2] || 0)],
   }));
   app.scene.characters.push(clone);
   setSelection({ type: "character", characterId: clone.id });
@@ -3824,7 +3859,11 @@ function addWaypointAtPlayhead() {
   character.root_keys.push({
     id,
     time: app.currentTime,
-    position: root.position,
+    position: [
+      root.position?.[0] || 0,
+      root.position?.[1] || 0,
+      root.position?.[2] || 0,
+    ],
     facing_degrees: root.facing_degrees,
   });
   sortedKeys(character);
@@ -3860,7 +3899,7 @@ function duplicateRootKey(character, key) {
   clone.id = nextKeyId(character);
   const timeOffset = key.time >= app.scene.duration - 0.2 ? -0.2 : 0.2;
   clone.time = clamp(snapTime(key.time + timeOffset), 0, app.scene.duration);
-  clone.position = [key.position[0] + 0.15, key.position[1] + 0.15, key.position[2] || 0];
+  clone.position = [key.position[0] + 0.15, key.position[1] + 0.15, Number(key.position?.[2] || 0)];
   character.root_keys.push(clone);
   selectRootById(character, clone.id);
 }
