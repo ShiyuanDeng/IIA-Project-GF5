@@ -29,7 +29,7 @@ def forward_kinematics(
     
     for i in traversal_order:
         parent = joints[i].parent
-        if parent is None:
+        if parent is None or parent < 0:
             R_world[i] = local_rotations[i]
             p_world[i] = root_offset + joints[i].translation
         else:
