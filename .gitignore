@@ -20,12 +20,6 @@ env/
 exports/
 .viewer_imports/
 
-# User-created Part 3 libraries
-libraries/avatars/*
-libraries/motions/custom/
-libraries/poses/
-libraries/scenes/
-
 # Local SMPL model downloads
 smpl/
 smplify_public/

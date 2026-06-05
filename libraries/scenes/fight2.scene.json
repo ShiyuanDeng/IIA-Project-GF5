@@ -1,0 +1,421 @@
+{
+  "format": "gf5_motion_scene",
+  "version": 3,
+  "duration": 24.5,
+  "background": {
+    "color": "#f4f1ea",
+    "image_path": "",
+    "show_grid": true,
+    "show_floor": true
+  },
+  "camera": {
+    "preset": "wide_static",
+    "target": "observer",
+    "height": 2.65
+  },
+  "export": {
+    "fps": 2,
+    "width": 960,
+    "height": 540
+  },
+  "characters": [
+    {
+      "id": "observer",
+      "label": "Observer",
+      "color": "#d6a72f",
+      "proxy_asset": "SMPL-24 Proxy",
+      "avatar_asset": "/home/drdeng/IIA-Project-GF5/libraries/avatars/Zohaib",
+      "track": [
+        {
+          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward.",
+          "start": 0.0,
+          "duration": 2.966667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person steps forward with the left foot, rotates the torso to the right, then throws a fast straight right punch extending the arm fully at shoulder height, snapping the hips forward, then pulls the arm back into guard position.",
+          "start": 3.0,
+          "duration": 1.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person pulls both hands back to their hips with palms facing outward, pauses with arms trembling, then lunges forward with the right foot and thrusts both palms explosively forward at chest height, arms fully extended, body leaning into the push.",
+          "start": 4.5,
+          "duration": 2.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: sprint",
+          "start": 7.0,
+          "duration": 3.366667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward.",
+          "start": 10.4,
+          "duration": 1.7,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person is struck by a powerful force in the chest, body jerking violently backward, arms flung wide, head snapping back, stumbles two large steps backward unable to control balance. (4)",
+          "start": 12.1,
+          "duration": 1.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person loses balance and falls slowly forward face-down toward the ground, one arm reaching out weakly while the other hand falls behind their lower back, body rotating face-first, landing flat on the stomach with legs splayed and arms at the sides.",
+          "start": 13.6,
+          "duration": 2.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person loses balance and falls slowly forward face-down toward the ground, one arm reaching out weakly while the other hand falls behind their lower back, body rotating face-first, landing flat on the stomach with legs splayed and arms at the sides.",
+          "start": 16.1,
+          "duration": 2.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person loses balance and falls slowly forward face-down toward the ground, one arm reaching out weakly while the other hand falls behind their lower back, body rotating face-first, landing flat on the stomach with legs splayed and arms at the sides. (2)",
+          "start": 18.7,
+          "duration": 2.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        }
+      ],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            0.0,
+            1.5,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k1",
+          "time": 2.9,
+          "position": [
+            0.0,
+            0.55,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k2",
+          "time": 7.0,
+          "position": [
+            0.0,
+            0.55,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k3",
+          "time": 8.3,
+          "position": [
+            0.0,
+            -6.0,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k4",
+          "time": 9.1,
+          "position": [
+            0.0,
+            -6.0,
+            0.0
+          ],
+          "facing_degrees": 60.0
+        },
+        {
+          "id": "k5",
+          "time": 10.177777777777777,
+          "position": [
+            0.0,
+            -2.0,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k6",
+          "time": 12.0,
+          "position": [
+            0.0,
+            2.0,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k7",
+          "time": 13.566666999999999,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k1",
+          "to": "k2",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k2",
+          "to": "k3",
+          "mode": "curve",
+          "facing": "manual"
+        },
+        {
+          "from": "k3",
+          "to": "k4",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k4",
+          "to": "k5",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k5",
+          "to": "k6",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k6",
+          "to": "k7",
+          "mode": "linear",
+          "facing": "manual"
+        }
+      ]
+    },
+    {
+      "id": "character_2",
+      "label": "Ivan",
+      "color": "#2f7f7b",
+      "proxy_asset": "SMPL-24 Proxy",
+      "avatar_asset": "/home/drdeng/IIA-Project-GF5/libraries/avatars/Ivan",
+      "track": [
+        {
+          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward. (2)",
+          "start": 0.0,
+          "duration": 3.2,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person is struck in the face, head snapping back, stumbles one step backward, raises both forearms to protect the face, then plants feet wide to regain balance.",
+          "start": 3.4,
+          "duration": 1.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person is suddenly thrown backward, both arms flung wide, torso arching back, stumbles two large steps, then loses balance and falls hard onto their back with arms spread on the ground.",
+          "start": 6.1,
+          "duration": 1.966667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.0
+        },
+        {
+          "clip": "Preset: Idle stand",
+          "start": 8.1,
+          "duration": 0.5,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.0,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person stands with feet shoulder-width apart, raises both hands slowly in front of the chest with palms facing inward, moves arms in slow wide circular motions, body swaying gently with weight shifting between feet, breathing deeply, arms trembling slightly as energy builds.",
+          "start": 8.6,
+          "duration": 2.8,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person lunges explosively forward with the right foot, twists the torso and thrusts both palms outward in a powerful burst, arms fully extended forward, whole body weight driving into the push, then holds the extended pose. (2)",
+          "start": 11.4,
+          "duration": 2.0,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person loses balance and falls slowly forward face-down toward the ground, one arm reaching out weakly while the other hand falls behind their lower back, body rotating face-first, landing flat on the stomach with legs splayed and arms at the sides. (3)",
+          "start": 13.6,
+          "duration": 2.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        }
+      ],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            0.0,
+            -1.5,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k1",
+          "time": 3.4,
+          "position": [
+            0.0,
+            -0.35,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k3",
+          "time": 6.1,
+          "position": [
+            0.0,
+            -0.35,
+            0.0
+          ],
+          "facing_degrees": 28.6363636363636
+        },
+        {
+          "id": "k2",
+          "time": 6.333333333333333,
+          "position": [
+            0.0,
+            -0.35,
+            0.0
+          ],
+          "facing_degrees": 80.0
+        },
+        {
+          "id": "k4",
+          "time": 7.6,
+          "position": [
+            0.0,
+            -10.0,
+            0.0
+          ],
+          "facing_degrees": 80.0
+        },
+        {
+          "id": "k5",
+          "time": 8.1,
+          "position": [
+            0.0,
+            5.0,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k1",
+          "to": "k3",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k3",
+          "to": "k2",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k2",
+          "to": "k4",
+          "mode": "curve",
+          "facing": "manual"
+        },
+        {
+          "from": "k4",
+          "to": "k5",
+          "mode": "hold",
+          "facing": "manual"
+        }
+      ]
+    }
+  ]
+}

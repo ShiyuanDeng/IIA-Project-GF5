@@ -1,0 +1,121 @@
+{
+  "format": "gf5_motion_scene",
+  "version": 3,
+  "duration": 12.0,
+  "background": {
+    "color": "#f4f1ea",
+    "image_path": "",
+    "show_grid": true,
+    "show_floor": true
+  },
+  "camera": {
+    "preset": "slow_orbit",
+    "target": "__origin__",
+    "height": 1.45
+  },
+  "export": {
+    "fps": 24,
+    "width": 960,
+    "height": 540
+  },
+  "characters": [
+    {
+      "id": "observer",
+      "label": "Observer",
+      "color": "#d6a72f",
+      "proxy_asset": "SMPL-24 Proxy",
+      "avatar_asset": "",
+      "track": [
+        {
+          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward.",
+          "start": 0.0,
+          "duration": 2.966667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        }
+      ],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            0.0,
+            1.5,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k1",
+          "time": 2.9,
+          "position": [
+            0.0,
+            0.55,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "linear",
+          "facing": "manual"
+        }
+      ]
+    },
+    {
+      "id": "character_2",
+      "label": "Ivan",
+      "color": "#2f7f7b",
+      "proxy_asset": "SMPL-24 Proxy",
+      "avatar_asset": "",
+      "track": [
+        {
+          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward. (2)",
+          "start": 0.0,
+          "duration": 2.966667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        }
+      ],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            0.0,
+            -1.5,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k1",
+          "time": 2.9,
+          "position": [
+            0.0,
+            -0.55,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "linear",
+          "facing": "manual"
+        }
+      ]
+    }
+  ]
+}
