@@ -339,19 +339,53 @@ def keyframed_camera_state(camera: dict[str, Any], scene_time: float) -> CameraS
         return camera_key_state(keys[0])
     if scene_time >= float(keys[-1].get("time", 0.0)):
         return camera_key_state(keys[-1])
-    for first, second in zip(keys[:-1], keys[1:]):
+    for index, (first, second) in enumerate(zip(keys[:-1], keys[1:])):
         t0 = float(first.get("time", 0.0))
         t1 = float(second.get("time", 0.0))
         if t0 <= scene_time <= t1:
+            mode = camera_segment_mode(camera, first, second)
+            if mode == "hold":
+                return camera_key_state(second if scene_time >= t1 - 1e-6 else first)
             alpha = (scene_time - t0) / max(1e-6, t1 - t0)
             first_position, first_look_at, first_fov = camera_key_state(first)
             second_position, second_look_at, second_fov = camera_key_state(second)
+            if mode == "curve":
+                prev_position, prev_look_at, prev_fov = camera_key_state(keys[max(0, index - 1)])
+                next_position, next_look_at, next_fov = camera_key_state(keys[min(len(keys) - 1, index + 2)])
+                return (
+                    catmull_rom_vec3(prev_position, first_position, second_position, next_position, alpha),
+                    catmull_rom_vec3(prev_look_at, first_look_at, second_look_at, next_look_at, alpha),
+                    catmull_rom_scalar(prev_fov, first_fov, second_fov, next_fov, alpha),
+                )
             return (
                 lerp_vec3(first_position, second_position, alpha),
                 lerp_vec3(first_look_at, second_look_at, alpha),
                 first_fov * (1.0 - alpha) + second_fov * alpha,
             )
     return camera_key_state(keys[-1])
+
+
+def camera_segment_mode(camera: dict[str, Any], first: dict[str, Any], second: dict[str, Any]) -> str:
+    first_id = str(first.get("id", ""))
+    second_id = str(second.get("id", ""))
+    for segment in camera.get("segments", []):
+        if not isinstance(segment, dict):
+            continue
+        if str(segment.get("from", "")) == first_id and str(segment.get("to", "")) == second_id:
+            mode = str(segment.get("mode", "linear"))
+            return mode if mode in {"linear", "curve", "hold"} else "linear"
+    return "linear"
+
+
+def catmull_rom_scalar(p0: float, p1: float, p2: float, p3: float, alpha: float) -> float:
+    t2 = alpha * alpha
+    t3 = t2 * alpha
+    return 0.5 * (
+        2.0 * p1
+        + (-p0 + p2) * alpha
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+        + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
+    )
 
 
 def keyframed_camera_pose(camera: dict[str, Any], scene_time: float) -> tuple[Vec3, Vec3] | None:

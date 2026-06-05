@@ -1410,6 +1410,42 @@ body.dragging-motion .timeline-scroller {
   stroke-width: 2.5;
 }
 
+.camera-time-key {
+  fill: #b23b36;
+  stroke: #7f2521;
+  stroke-width: 1.5;
+  cursor: ew-resize;
+}
+
+.camera-time-key.selected {
+  fill: #7f2521;
+  stroke: #111;
+  stroke-width: 2.5;
+}
+
+.camera-time-label {
+  fill: #7f2521;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.camera-segment {
+  stroke: #b23b36;
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.camera-segment-curve {
+  stroke-dasharray: 2 5;
+}
+
+.camera-segment-hold {
+  stroke: #7f2521;
+  stroke-dasharray: 8 4;
+}
+
 .playhead {
   stroke: #b23b36;
   stroke-width: 2;

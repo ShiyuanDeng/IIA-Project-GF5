@@ -1,0 +1,884 @@
+{
+  "format": "gf5_motion_scene",
+  "version": 3,
+  "duration": 33.5,
+  "background": {
+    "color": "#f4f1ea",
+    "image_path": "",
+    "show_grid": true,
+    "show_floor": true
+  },
+  "camera": {
+    "preset": "keyframed",
+    "target": "observer",
+    "height": 2.65,
+    "keyframes": [
+      {
+        "id": "c0",
+        "time": 0.0,
+        "position": [
+          1.701235622829861,
+          3.990090603298611,
+          2.5655
+        ],
+        "look_at": [
+          0.0,
+          1.5,
+          1.658
+        ],
+        "fov_degrees": 60.0
+      },
+      {
+        "id": "c1",
+        "time": 6.22,
+        "position": [
+          1.5471876356336804,
+          1.1192362467447916,
+          2.0155
+        ],
+        "look_at": [
+          0.0,
+          0.5,
+          1.058
+        ],
+        "fov_degrees": 60.0
+      },
+      {
+        "id": "c2",
+        "time": 6.8,
+        "position": [
+          1.3457438151041667,
+          -0.13259345160590277,
+          2.5655
+        ],
+        "look_at": [
+          0.0,
+          -5.0,
+          1.658
+        ],
+        "fov_degrees": 80.0
+      },
+      {
+        "id": "c4",
+        "time": 8.0,
+        "position": [
+          0.0,
+          -5.5,
+          1.6
+        ],
+        "look_at": [
+          0.0,
+          -6.0,
+          1.658
+        ],
+        "fov_degrees": 80.0
+      },
+      {
+        "id": "c3",
+        "time": 8.066666999999999,
+        "position": [
+          1.3457438151041667,
+          -0.13259345160590277,
+          2.5655
+        ],
+        "look_at": [
+          0.0,
+          -5.0,
+          1.658
+        ],
+        "fov_degrees": 80.0
+      }
+    ]
+  },
+  "export": {
+    "fps": 20,
+    "width": 960,
+    "height": 540
+  },
+  "characters": [
+    {
+      "id": "observer",
+      "label": "Observer",
+      "color": "#d6a72f",
+      "proxy_asset": "SMPL-24 Proxy",
+      "avatar_asset": "/home/drdeng/IIA-Project-GF5/libraries/avatars/Zohaib",
+      "track": [
+        {
+          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward.",
+          "start": 0.0,
+          "duration": 2.966667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person steps forward with the left foot, rotates the torso to the right, then throws a fast straight right punch extending the arm fully at shoulder height, snapping the hips forward, then pulls the arm back into guard position.",
+          "start": 3.0,
+          "duration": 1.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person pulls both hands back to their hips with palms facing outward, pauses with arms trembling, then lunges forward with the right foot and thrusts both palms explosively forward at chest height, arms fully extended, body leaning into the push.",
+          "start": 4.5,
+          "duration": 2.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: sprint",
+          "start": 7.0,
+          "duration": 3.366667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward.",
+          "start": 10.4,
+          "duration": 2.3,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person is struck by a powerful force in the chest, body jerking violently backward, arms flung wide, head snapping back, stumbles two large steps backward unable to control balance. (4)",
+          "start": 12.7,
+          "duration": 1.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person loses balance and falls slowly forward face-down toward the ground, one arm reaching out weakly while the other hand falls behind their lower back, body rotating face-first, landing flat on the stomach with legs splayed and arms at the sides.",
+          "start": 14.2,
+          "duration": 2.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person lying face down on the ground is slowly lifted upward as if by an invisible force, arms and legs hanging limply, body rising from the prone position into the air. (3)",
+          "start": 16.7,
+          "duration": 1.966667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person is suddenly blasted backward with great force, body tumbling through the air, arms and legs flailing uncontrollably, flying backward rapidly.",
+          "start": 18.7,
+          "duration": 1.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person crashes hard onto their back on the ground after being thrown, body impacting heavily, arms slamming outward, head snapping back, then lying completely still on their back.",
+          "start": 20.2,
+          "duration": 3.8,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 2.0
+        },
+        {
+          "clip": "Custom: HY-Motion: A person lying on their back slowly and painfully rolls to the side, pushes up with both arms trembling, and struggles to raise themselves into a kneeling position on both knees, breathing heavily.",
+          "start": 24.0,
+          "duration": 3.1,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.0
+        },
+        {
+          "clip": "Custom: HY-Motion: A person is knocked to their left side and begins rolling laterally to the left, body rotating around its long axis like a log roll, arms tucked, continuously rotating leftward across the ground two full rotations before coming to a stop on their back.",
+          "start": 27.1,
+          "duration": 2.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        }
+      ],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            0.0,
+            1.5,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k1",
+          "time": 2.9,
+          "position": [
+            0.0,
+            0.55,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k2",
+          "time": 7.0,
+          "position": [
+            0.0,
+            0.55,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k3",
+          "time": 8.3,
+          "position": [
+            0.0,
+            -6.0,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k4",
+          "time": 9.1,
+          "position": [
+            0.0,
+            -6.0,
+            0.0
+          ],
+          "facing_degrees": 60.0
+        },
+        {
+          "id": "k5",
+          "time": 10.177777777777777,
+          "position": [
+            0.0,
+            -2.0,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k6",
+          "time": 12.7,
+          "position": [
+            0.0,
+            2.0,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k7",
+          "time": 13.566666999999999,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k8",
+          "time": 16.1,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": 10.0
+        },
+        {
+          "id": "k12",
+          "time": 16.666667,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": 10.0
+        },
+        {
+          "id": "k13",
+          "time": 18.166666666666668,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": 96.989532249665
+        },
+        {
+          "id": "k9",
+          "time": 18.788888888888888,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": 10.0
+        },
+        {
+          "id": "k14",
+          "time": 20.2,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": -32.6867469879517
+        },
+        {
+          "id": "k11",
+          "time": 22.033333333333335,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": -32.0
+        },
+        {
+          "id": "k10",
+          "time": 25.81111111111111,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": -187.686746987952
+        },
+        {
+          "id": "k15",
+          "time": 27.255555555555556,
+          "position": [
+            0.0,
+            -5.0,
+            0.0
+          ],
+          "facing_degrees": -187.686746987952
+        },
+        {
+          "id": "k16",
+          "time": 27.8,
+          "position": [
+            1.5,
+            -6.5,
+            0.0
+          ],
+          "facing_degrees": 135.0
+        },
+        {
+          "id": "k17",
+          "time": 29.5,
+          "position": [
+            2.5,
+            -7.5,
+            0.0
+          ],
+          "facing_degrees": 135.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k1",
+          "to": "k2",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k2",
+          "to": "k3",
+          "mode": "curve",
+          "facing": "manual"
+        },
+        {
+          "from": "k3",
+          "to": "k4",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k4",
+          "to": "k5",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k5",
+          "to": "k6",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k6",
+          "to": "k7",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k7",
+          "to": "k8",
+          "mode": "hold",
+          "facing": "manual"
+        },
+        {
+          "from": "k8",
+          "to": "k12",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k12",
+          "to": "k13",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k13",
+          "to": "k9",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k9",
+          "to": "k14",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k14",
+          "to": "k11",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k11",
+          "to": "k10",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k10",
+          "to": "k15",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k15",
+          "to": "k16",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k16",
+          "to": "k17",
+          "mode": "linear",
+          "facing": "manual"
+        }
+      ]
+    },
+    {
+      "id": "character_2",
+      "label": "Ivan",
+      "color": "#2f7f7b",
+      "proxy_asset": "SMPL-24 Proxy",
+      "avatar_asset": "/home/drdeng/IIA-Project-GF5/libraries/avatars/Ivan",
+      "track": [
+        {
+          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward. (2)",
+          "start": 0.0,
+          "duration": 3.2,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person is struck in the face, head snapping back, stumbles one step backward, raises both forearms to protect the face, then plants feet wide to regain balance.",
+          "start": 3.4,
+          "duration": 1.466667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person is suddenly thrown backward, both arms flung wide, torso arching back, stumbles two large steps, then loses balance and falls hard onto their back with arms spread on the ground.",
+          "start": 6.1,
+          "duration": 1.966667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.0
+        },
+        {
+          "clip": "Preset: Idle stand",
+          "start": 8.1,
+          "duration": 0.5,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.0,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person stands with feet shoulder-width apart, raises both hands slowly in front of the chest with palms facing inward, moves arms in slow wide circular motions, body swaying gently with weight shifting between feet, breathing deeply, arms trembling slightly as energy builds.",
+          "start": 8.6,
+          "duration": 3.4,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person lunges explosively forward with the right foot, twists the torso and thrusts both palms outward in a powerful burst, arms fully extended forward, whole body weight driving into the push, then holds the extended pose. (2)",
+          "start": 12.0,
+          "duration": 2.0,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: A person walks slowly and deliberately forward, gradually raising their right arm to shoulder height with palm facing forward and fingers spread wide, maintaining a slow menacing pace throughout the walk.",
+          "start": 14.0,
+          "duration": 4.966667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: walk confidently, then stare down to the front",
+          "start": 19.1,
+          "duration": 7.3,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        },
+        {
+          "clip": "Custom: HY-Motion: light kick using right foot",
+          "start": 26.2,
+          "duration": 3.566667,
+          "trim_start": 0.0,
+          "trim_end": null,
+          "root_mode": "path",
+          "blend_in": 0.45,
+          "blend_out": 0.45
+        }
+      ],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            0.0,
+            -1.5,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k1",
+          "time": 3.4,
+          "position": [
+            0.0,
+            -0.35,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k3",
+          "time": 6.1,
+          "position": [
+            0.0,
+            -0.35,
+            0.0
+          ],
+          "facing_degrees": 28.6363636363636
+        },
+        {
+          "id": "k2",
+          "time": 6.333333333333333,
+          "position": [
+            0.0,
+            -0.35,
+            0.0
+          ],
+          "facing_degrees": 80.0
+        },
+        {
+          "id": "k4",
+          "time": 7.6,
+          "position": [
+            0.0,
+            -10.0,
+            0.0
+          ],
+          "facing_degrees": 80.0
+        },
+        {
+          "id": "k5",
+          "time": 8.1,
+          "position": [
+            0.0,
+            5.0,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k6",
+          "time": 13.6,
+          "position": [
+            0.0,
+            5.0,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k7",
+          "time": 14.2,
+          "position": [
+            0.0,
+            4.2,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k8",
+          "time": 14.721988888888903,
+          "position": [
+            0.0,
+            3.7,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k9",
+          "time": 15.3,
+          "position": [
+            0.0,
+            2.8,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k10",
+          "time": 15.822222222222223,
+          "position": [
+            0.0,
+            2.5,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k11",
+          "time": 16.355555555555554,
+          "position": [
+            0.0,
+            1.5,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k12",
+          "time": 16.844444444444445,
+          "position": [
+            0.0,
+            1.2,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k13",
+          "time": 17.366666666666667,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k14",
+          "time": 17.855555555555554,
+          "position": [
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k15",
+          "time": 18.466667,
+          "position": [
+            0.0,
+            -1.5,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        },
+        {
+          "id": "k16",
+          "time": 26.0,
+          "position": [
+            0.0,
+            -4.5,
+            0.0
+          ],
+          "facing_degrees": 180.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k1",
+          "to": "k3",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k3",
+          "to": "k2",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k2",
+          "to": "k4",
+          "mode": "curve",
+          "facing": "manual"
+        },
+        {
+          "from": "k4",
+          "to": "k5",
+          "mode": "hold",
+          "facing": "manual"
+        },
+        {
+          "from": "k5",
+          "to": "k6",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k6",
+          "to": "k7",
+          "mode": "curve",
+          "facing": "manual"
+        },
+        {
+          "from": "k7",
+          "to": "k8",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k8",
+          "to": "k9",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k9",
+          "to": "k10",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k10",
+          "to": "k11",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k11",
+          "to": "k12",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k12",
+          "to": "k13",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k13",
+          "to": "k14",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k14",
+          "to": "k15",
+          "mode": "linear",
+          "facing": "manual"
+        },
+        {
+          "from": "k15",
+          "to": "k16",
+          "mode": "linear",
+          "facing": "manual"
+        }
+      ]
+    }
+  ]
+}

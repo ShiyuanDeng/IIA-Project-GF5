@@ -649,11 +649,13 @@ def normalize_camera(raw: Any) -> dict[str, Any]:
     preset = str(raw.get("preset", "slow_orbit"))
     if preset not in {"wide_static", "front_stage", "slow_orbit", "follow_character", "dolly_in", "top_down", "keyframed"}:
         preset = "slow_orbit"
+    keyframes = normalize_camera_keyframes(raw.get("keyframes", []))
     return {
         "preset": preset,
         "target": str(raw.get("target", "")),
         "height": max(0.4, float(raw.get("height", 1.35))),
-        "keyframes": normalize_camera_keyframes(raw.get("keyframes", [])),
+        "keyframes": keyframes,
+        "segments": normalize_camera_segments(raw.get("segments", []), keyframes),
     }
 
 
@@ -681,6 +683,32 @@ def normalize_camera_keyframes(raw_keyframes: Any) -> list[dict[str, Any]]:
         seen.add(key_id)
         keyframe["id"] = key_id
     return keyframes
+
+
+def normalize_camera_segments(raw_segments: Any, keyframes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    key_ids = [str(key["id"]) for key in keyframes]
+    valid_key_ids = set(key_ids)
+    segment_by_pair: dict[tuple[str, str], dict[str, Any]] = {}
+    if isinstance(raw_segments, list):
+        for raw_segment in raw_segments:
+            if not isinstance(raw_segment, dict):
+                continue
+            from_id = str(raw_segment.get("from", ""))
+            to_id = str(raw_segment.get("to", ""))
+            if from_id not in valid_key_ids or to_id not in valid_key_ids:
+                continue
+            mode = str(raw_segment.get("mode", "linear"))
+            if mode not in {"linear", "curve", "hold"}:
+                mode = "linear"
+            segment_by_pair[(from_id, to_id)] = {
+                "from": from_id,
+                "to": to_id,
+                "mode": mode,
+            }
+    segments: list[dict[str, Any]] = []
+    for first, second in zip(key_ids[:-1], key_ids[1:]):
+        segments.append(segment_by_pair.get((first, second), {"from": first, "to": second, "mode": "linear"}))
+    return segments
 
 
 def normalize_export(raw: Any) -> dict[str, Any]:

@@ -668,6 +668,7 @@ function sceneCamera() {
       target: CAMERA_ORIGIN_TARGET,
       height: 1.35,
       keyframes: [],
+      segments: [],
     };
   }
   if (!CAMERA_PRESETS.some(([value]) => value === app.scene.camera.preset)) app.scene.camera.preset = "slow_orbit";
@@ -679,6 +680,7 @@ function sceneCamera() {
     app.scene.camera.target = CAMERA_ORIGIN_TARGET;
   }
   app.scene.camera.keyframes = cameraKeyframes(app.scene.camera);
+  app.scene.camera.segments = cameraSegments(app.scene.camera);
   return app.scene.camera;
 }
 
@@ -700,6 +702,48 @@ function nextCameraKeyId(camera = sceneCamera()) {
   let index = camera.keyframes.length;
   while (ids.has(`c${index}`)) index += 1;
   return `c${index}`;
+}
+
+function cameraSegments(camera = sceneCamera()) {
+  const keys = cameraKeyframes(camera);
+  const keyIds = keys.map((key) => key.id);
+  const validIds = new Set(keyIds);
+  const segmentByPair = new Map();
+  const rawSegments = Array.isArray(camera.segments) ? camera.segments : [];
+  rawSegments.forEach((segment) => {
+    if (!segment || !validIds.has(segment.from) || !validIds.has(segment.to)) return;
+    const mode = ["linear", "curve", "hold"].includes(segment.mode) ? segment.mode : "linear";
+    segmentByPair.set(`${segment.from}\n${segment.to}`, { from: segment.from, to: segment.to, mode });
+  });
+  camera.segments = [];
+  for (let index = 0; index < keyIds.length - 1; index += 1) {
+    const from = keyIds[index];
+    const to = keyIds[index + 1];
+    camera.segments.push(segmentByPair.get(`${from}\n${to}`) || { from, to, mode: "linear" });
+  }
+  return camera.segments;
+}
+
+function cameraSegmentModeForPair(camera, first, second) {
+  const segment = cameraSegments(camera).find((item) => item.from === first.id && item.to === second.id);
+  return segment?.mode || "linear";
+}
+
+function setCameraSegmentModeForPair(camera, first, second, mode) {
+  const normalizedMode = ["linear", "curve", "hold"].includes(mode) ? mode : "linear";
+  const segment = cameraSegments(camera).find((item) => item.from === first.id && item.to === second.id);
+  if (segment) segment.mode = normalizedMode;
+  else camera.segments.push({ from: first.id, to: second.id, mode: normalizedMode });
+}
+
+function editableCameraSegmentsForKey(camera, key) {
+  const keys = cameraKeyframes(camera);
+  const index = keys.findIndex((candidate) => candidate.id === key.id);
+  if (index < 0) return null;
+  return {
+    incoming: index > 0 ? { fromKey: keys[index - 1], toKey: key } : null,
+    outgoing: index < keys.length - 1 ? { fromKey: key, toKey: keys[index + 1] } : null,
+  };
 }
 
 function sceneExport() {
@@ -1944,7 +1988,20 @@ function keyframedCameraPoseAt(camera, time) {
     const first = keys[index];
     const second = keys[index + 1];
     if (first.time <= time && time <= second.time) {
+      const mode = cameraSegmentModeForPair(camera, first, second);
+      if (mode === "hold") {
+        return cameraPoseFromKey(time >= second.time - 0.001 ? second : first);
+      }
       const alpha = (time - first.time) / Math.max(0.001, second.time - first.time);
+      if (mode === "curve") {
+        const prev = keys[Math.max(0, index - 1)];
+        const next = keys[Math.min(keys.length - 1, index + 2)];
+        return {
+          position: catmullRomPosition(prev.position, first.position, second.position, next.position, alpha),
+          lookAt: catmullRomPosition(prev.look_at, first.look_at, second.look_at, next.look_at, alpha),
+          fovDegrees: catmullRomScalar(prev.fov_degrees, first.fov_degrees, second.fov_degrees, next.fov_degrees, alpha),
+        };
+      }
       return {
         position: lerpPosition(first.position, second.position, alpha),
         lookAt: lerpPosition(first.look_at, second.look_at, alpha),
@@ -1961,6 +2018,17 @@ function cameraPoseFromKey(key) {
     lookAt: [...key.look_at],
     fovDegrees: key.fov_degrees,
   };
+}
+
+function catmullRomScalar(p0, p1, p2, p3, alpha) {
+  const t2 = alpha * alpha;
+  const t3 = t2 * alpha;
+  return 0.5 * (
+    2 * p1
+    + (-p0 + p2) * alpha
+    + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+    + (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+  );
 }
 
 function cameraTargetLookAt(camera, time, height) {
@@ -2809,11 +2877,13 @@ function renderTimeline() {
   const rulerH = TIMELINE_RULER_HEIGHT;
   const charH = TIMELINE_CHARACTER_HEIGHT;
   const width = timelineContentWidth();
-  const height = rulerH + app.scene.characters.length * charH + 30;
+  const cameraY = rulerH + app.scene.characters.length * charH;
+  const height = cameraY + charH + 30;
   svg.setAttribute("width", width);
   svg.setAttribute("height", height);
   drawRuler(svg, left, width, rulerH, height);
   app.scene.characters.forEach((character, index) => drawTimelineCharacter(svg, character, index, left, rulerH, charH));
+  drawTimelineCamera(svg, left, cameraY, charH);
   drawMotionDropPreview(svg, left, rulerH, charH);
   const playX = timelinePlayheadX();
   const snapped = app.drag?.mode === "timeline-scrub" && app.timelineSnap;
@@ -2885,6 +2955,63 @@ function drawTimelineCharacter(svg, character, index, left, rulerH, charH) {
     y1: y + charH,
     x2: timelineContentWidth(),
     y2: y + charH,
+    class: "track-separator",
+  }));
+}
+
+function drawTimelineCamera(svg, left, y, rowH) {
+  const camera = sceneCamera();
+  const keys = cameraKeyframes(camera);
+  const selected = app.selection.type === "camera_key";
+  svg.appendChild(makeSvg("rect", { x: 0, y, width: "100%", height: rowH, fill: "#fbfcfb" }));
+  svg.appendChild(makeSvg("rect", {
+    x: 0,
+    y,
+    width: left,
+    height: rowH,
+    class: `track-header-bg ${selected ? "selected" : ""}`,
+    "data-kind": "camera-track-select",
+  }));
+  svg.appendChild(makeSvg("circle", { cx: 18, cy: y + 24, r: 5, fill: "#b23b36", class: "track-select-dot", "data-kind": "camera-track-select" }));
+  svg.appendChild(makeSvg("text", { x: 40, y: y + 28, class: "track-label", "data-kind": "camera-track-select" }, [document.createTextNode("Camera")]));
+  svg.appendChild(makeSvg("text", { x: 40, y: y + 55, class: "row-label", "data-kind": "camera-track-select" }, [document.createTextNode(camera.preset === "keyframed" ? `${keys.length} keys` : camera.preset.replace("_", " "))]));
+
+  const keyY = y + 42;
+  svg.appendChild(makeSvg("text", { x: left - 46, y: y + 47, class: "row-label" }, [document.createTextNode("Keys")]));
+  svg.appendChild(makeSvg("line", { x1: left, y1: keyY, x2: left + app.scene.duration * app.pixelsPerSecond, y2: keyY, stroke: "#d2c3c1", "stroke-width": 2 }));
+  if (camera.preset === "keyframed") {
+    cameraSegments(camera).forEach((segment) => {
+      const first = keys.find((key) => key.id === segment.from);
+      const second = keys.find((key) => key.id === segment.to);
+      if (!first || !second) return;
+      const x1 = left + first.time * app.pixelsPerSecond;
+      const x2 = left + second.time * app.pixelsPerSecond;
+      svg.appendChild(makeSvg("line", {
+        x1,
+        y1: keyY,
+        x2,
+        y2: keyY,
+        class: `camera-segment camera-segment-${segment.mode || "linear"}`,
+      }));
+    });
+    keys.forEach((key, keyIndex) => {
+      const x = left + key.time * app.pixelsPerSecond;
+      const isSelected = app.selection.type === "camera_key" && app.selection.index === keyIndex;
+      const points = `${x},${keyY - 9} ${x + 9},${keyY} ${x},${keyY + 9} ${x - 9},${keyY}`;
+      svg.appendChild(makeSvg("polygon", {
+        points,
+        class: `camera-time-key ${isSelected ? "selected" : ""}`,
+        "data-kind": "camera-time",
+        "data-index": keyIndex,
+      }));
+      svg.appendChild(makeSvg("text", { x: x + 9, y: keyY - 11, class: "camera-time-label" }, [document.createTextNode(`${key.time.toFixed(1)}s`)]));
+    });
+  }
+  svg.appendChild(makeSvg("line", {
+    x1: 0,
+    y1: y + rowH,
+    x2: timelineContentWidth(),
+    y2: y + rowH,
     class: "track-separator",
   }));
 }
@@ -3365,6 +3492,15 @@ function renderCameraKeyInspector(panel, selection) {
   const camera = sceneCamera();
   const key = cameraKeyframes(camera)[selection.index];
   if (!key) return renderSceneInspector(panel);
+  const segmentRefs = editableCameraSegmentsForKey(camera, key);
+  const incomingMode = segmentRefs?.incoming ? cameraSegmentModeForPair(camera, segmentRefs.incoming.fromKey, segmentRefs.incoming.toKey) : "";
+  const outgoingMode = segmentRefs?.outgoing ? cameraSegmentModeForPair(camera, segmentRefs.outgoing.fromKey, segmentRefs.outgoing.toKey) : "";
+  const segmentField = segmentRefs?.incoming || segmentRefs?.outgoing ? `
+    <div class="segment-mode-row">
+    ${segmentRefs?.incoming ? segmentModeSelectHtml("Incoming camera", "cameraIncomingMode", incomingMode) : ""}
+    ${segmentRefs?.outgoing ? segmentModeSelectHtml("Outgoing camera", "cameraOutgoingMode", outgoingMode) : ""}
+    </div>
+  ` : "";
   panel.innerHTML = `
     <div class="field"><label>Time</label><input id="cameraKeyTime" type="number" min="0" step="0.1" value="${key.time}"></div>
     <div class="field"><label>Camera X</label><input id="cameraKeyX" type="number" step="0.05" value="${key.position[0]}"></div>
@@ -3374,6 +3510,7 @@ function renderCameraKeyInspector(panel, selection) {
     <div class="field"><label>Look-at Y</label><input id="cameraLookY" type="number" step="0.05" value="${key.look_at[1]}"></div>
     <div class="field"><label>Look-at Z</label><input id="cameraLookZ" type="number" step="0.05" value="${key.look_at[2]}"></div>
     <div class="field"><label>FOV degrees</label><input id="cameraFovDegrees" type="number" min="10" max="120" step="1" value="${key.fov_degrees}"></div>
+    ${segmentField}
     <div class="button-row">
       <button id="snapCameraKeyToPlayhead">Move To Playhead</button>
       <button id="duplicateCameraKey">Duplicate</button>
@@ -3391,6 +3528,20 @@ function renderCameraKeyInspector(panel, selection) {
   $("#cameraLookY").addEventListener("change", (event) => { pushUndoSnapshot(); key.look_at[1] = Number(event.target.value) || 0; renderAll(); });
   $("#cameraLookZ").addEventListener("change", (event) => { pushUndoSnapshot(); key.look_at[2] = Number(event.target.value) || 0; renderAll(); });
   $("#cameraFovDegrees").addEventListener("change", (event) => { pushUndoSnapshot(); key.fov_degrees = clamp(Number(event.target.value) || 45, 10, 120); renderAll(); });
+  if (segmentRefs?.incoming) {
+    $("#cameraIncomingMode").addEventListener("change", (event) => {
+      pushUndoSnapshot();
+      setCameraSegmentModeForPair(camera, segmentRefs.incoming.fromKey, segmentRefs.incoming.toKey, event.target.value);
+      renderAll();
+    });
+  }
+  if (segmentRefs?.outgoing) {
+    $("#cameraOutgoingMode").addEventListener("change", (event) => {
+      pushUndoSnapshot();
+      setCameraSegmentModeForPair(camera, segmentRefs.outgoing.fromKey, segmentRefs.outgoing.toKey, event.target.value);
+      renderAll();
+    });
+  }
   $("#snapCameraKeyToPlayhead").addEventListener("click", () => {
     pushUndoSnapshot();
     key.time = app.currentTime;
@@ -3530,6 +3681,27 @@ function timelinePointerDown(event) {
   if (kind === "timeline-playhead") {
     event.preventDefault();
     startTimelineScrub(point, event.pointerId, event);
+    return;
+  }
+  if (kind === "camera-track-select") {
+    event.preventDefault();
+    setSelection({ type: "scene" });
+    return;
+  }
+  if (kind === "camera-time") {
+    event.preventDefault();
+    const index = Number(target.dataset.index);
+    const key = cameraKeyframes()[index];
+    if (!key) return;
+    setSelection({ type: "camera_key", index });
+    app.drag = {
+      mode: "camera-time",
+      index,
+      keyId: key.id,
+      startPoint: point,
+      original: JSON.parse(JSON.stringify(key)),
+    };
+    target.setPointerCapture?.(event.pointerId);
     return;
   }
   const character = characterById(target.dataset.character);
@@ -3935,6 +4107,16 @@ function dragTimeline(event) {
     return;
   }
   const dx = (point.x - app.drag.startPoint.x) / app.pixelsPerSecond;
+  if (app.drag.mode === "camera-time") {
+    recordDragEdit();
+    const camera = sceneCamera();
+    const key = camera.keyframes.find((candidate) => candidate.id === app.drag.keyId) || cameraKeyframes(camera)[app.drag.index];
+    if (!key) return;
+    key.time = clamp(snapTime(app.drag.original.time + dx), 0, app.scene.duration);
+    app.selection.index = Math.max(0, cameraKeyframes(camera).findIndex((candidate) => candidate.id === key.id));
+    renderAll();
+    return;
+  }
   const character = characterById(app.drag.characterId);
   if (app.drag.mode.startsWith("clip")) {
     recordDragEdit();
