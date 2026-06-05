@@ -21,6 +21,7 @@ else:
 
 
 Vec3 = tuple[float, float, float]
+CameraState = tuple[Vec3, Vec3, float]
 DEFAULT_CLIP_BLEND_SECONDS = 0.45
 MAX_TRANSITION_GAP_SECONDS = 0.25
 CAMERA_ORIGIN_TARGET = "__origin__"
@@ -286,14 +287,19 @@ def scene_center_and_radius(scene: dict[str, Any]) -> tuple[Vec3, float]:
 
 
 def camera_pose(scene: dict[str, Any], scene_time: float) -> tuple[Vec3, Vec3]:
+    position, look_at, _fov_degrees = camera_state(scene, scene_time)
+    return position, look_at
+
+
+def camera_state(scene: dict[str, Any], scene_time: float) -> CameraState:
     camera = scene.get("camera", {})
     center, radius = scene_center_and_radius(scene)
     height = max(0.4, float(camera.get("height", 1.35)))
     preset = str(camera.get("preset", "slow_orbit"))
     if preset == "keyframed":
-        keyframed_pose = keyframed_camera_pose(camera, scene_time)
-        if keyframed_pose is not None:
-            return keyframed_pose
+        keyframed_state = keyframed_camera_state(camera, scene_time)
+        if keyframed_state is not None:
+            return keyframed_state
     look_at = (center[0], center[1], max(0.6, height * 0.72))
     target_look_at = camera_target_look_at(scene, camera, scene_time, height)
     if preset == "front_stage":
@@ -319,10 +325,10 @@ def camera_pose(scene: dict[str, Any], scene_time: float) -> tuple[Vec3, Vec3]:
         look_at = (center[0], center[1], 0.0)
     else:
         position = vec_add(look_at, (0.45 * radius, 1.15 * radius, height * 0.95))
-    return position, look_at
+    return position, look_at, 38.0 if preset == "top_down" else 45.0
 
 
-def keyframed_camera_pose(camera: dict[str, Any], scene_time: float) -> tuple[Vec3, Vec3] | None:
+def keyframed_camera_state(camera: dict[str, Any], scene_time: float) -> CameraState | None:
     keys = sorted(
         [key for key in camera.get("keyframes", []) if isinstance(key, dict)],
         key=lambda key: (float(key.get("time", 0.0)), str(key.get("id", ""))),
@@ -330,22 +336,37 @@ def keyframed_camera_pose(camera: dict[str, Any], scene_time: float) -> tuple[Ve
     if not keys:
         return None
     if scene_time <= float(keys[0].get("time", 0.0)):
-        return camera_key_pose(keys[0])
+        return camera_key_state(keys[0])
     if scene_time >= float(keys[-1].get("time", 0.0)):
-        return camera_key_pose(keys[-1])
+        return camera_key_state(keys[-1])
     for first, second in zip(keys[:-1], keys[1:]):
         t0 = float(first.get("time", 0.0))
         t1 = float(second.get("time", 0.0))
         if t0 <= scene_time <= t1:
             alpha = (scene_time - t0) / max(1e-6, t1 - t0)
-            first_position, first_look_at = camera_key_pose(first)
-            second_position, second_look_at = camera_key_pose(second)
-            return lerp_vec3(first_position, second_position, alpha), lerp_vec3(first_look_at, second_look_at, alpha)
-    return camera_key_pose(keys[-1])
+            first_position, first_look_at, first_fov = camera_key_state(first)
+            second_position, second_look_at, second_fov = camera_key_state(second)
+            return (
+                lerp_vec3(first_position, second_position, alpha),
+                lerp_vec3(first_look_at, second_look_at, alpha),
+                first_fov * (1.0 - alpha) + second_fov * alpha,
+            )
+    return camera_key_state(keys[-1])
 
 
-def camera_key_pose(key: dict[str, Any]) -> tuple[Vec3, Vec3]:
-    return camera_vec3(key.get("position", [0.0, -4.0, 2.0])), camera_vec3(key.get("look_at", [0.0, 0.0, 1.0]))
+def keyframed_camera_pose(camera: dict[str, Any], scene_time: float) -> tuple[Vec3, Vec3] | None:
+    state = keyframed_camera_state(camera, scene_time)
+    if state is None:
+        return None
+    return state[0], state[1]
+
+
+def camera_key_state(key: dict[str, Any]) -> CameraState:
+    return (
+        camera_vec3(key.get("position", [0.0, -4.0, 2.0])),
+        camera_vec3(key.get("look_at", [0.0, 0.0, 1.0])),
+        clamp(float(key.get("fov_degrees", 45.0)), 10.0, 120.0),
+    )
 
 
 def camera_vec3(value: Any) -> Vec3:
@@ -365,7 +386,16 @@ def camera_target_look_at(scene: dict[str, Any], camera: dict[str, Any], scene_t
     return (root[0], root[1], max(0.75, height * 0.72))
 
 
-def project_point(point: Vec3, camera_position: Vec3, look_at: Vec3, width: int, height: int, *, top_down: bool) -> tuple[float, float, float] | None:
+def project_point(
+    point: Vec3,
+    camera_position: Vec3,
+    look_at: Vec3,
+    width: int,
+    height: int,
+    *,
+    top_down: bool,
+    fov_degrees: float | None = None,
+) -> tuple[float, float, float] | None:
     forward = normalize(vec_sub(look_at, camera_position))
     world_up = (0.0, 0.0, 1.0)
     right = cross(forward, world_up)
@@ -378,7 +408,7 @@ def project_point(point: Vec3, camera_position: Vec3, look_at: Vec3, width: int,
     depth = dot(rel, forward)
     if depth <= 0.03:
         return None
-    fov = math.radians(38.0 if top_down else 45.0)
+    fov = math.radians(clamp(float(fov_degrees if fov_degrees is not None else (38.0 if top_down else 45.0)), 10.0, 120.0))
     focal = 0.5 * height / math.tan(fov * 0.5)
     x = width * 0.5 + dot(rel, right) * focal / depth
     y = height * 0.54 - dot(rel, up) * focal / depth
@@ -396,6 +426,7 @@ def collect_projected_triangles(
     height: int,
     *,
     top_down: bool,
+    fov_degrees: float,
 ) -> None:
     import numpy as np
 
@@ -407,6 +438,7 @@ def collect_projected_triangles(
             width,
             height,
             top_down=top_down,
+            fov_degrees=fov_degrees,
         )
         for point in np.asarray(vertices, dtype=np.float32)
     ]
@@ -540,6 +572,7 @@ def draw_proxy_asset_characters(
     width: int,
     height: int,
     top_down: bool,
+    fov_degrees: float,
 ) -> None:
     import numpy as np
 
@@ -580,6 +613,7 @@ def draw_proxy_asset_characters(
                 width,
                 height,
                 top_down=top_down,
+                fov_degrees=fov_degrees,
             )
 
     for _, coords, color in sorted(triangles, key=lambda item: item[0]):
@@ -598,7 +632,7 @@ def render_scene_frame(
     background = scene.get("background", {})
     image = Image.new("RGB", (width, height), parse_hex_color(str(background.get("color", "#f4f1ea")), (244, 241, 234)))
     draw = ImageDraw.Draw(image, "RGBA")
-    camera_position, look_at = camera_pose(scene, scene_time)
+    camera_position, look_at, fov_degrees = camera_state(scene, scene_time)
     top_down = str(scene.get("camera", {}).get("preset", "")) == "top_down"
     center, radius = scene_center_and_radius(scene)
 
@@ -608,8 +642,8 @@ def render_scene_frame(
             ((index, -grid_extent, 0.0), (index, grid_extent, 0.0)),
             ((-grid_extent, index, 0.0), (grid_extent, index, 0.0)),
         ):
-            pa = project_point((a[0] + center[0], a[1] + center[1], a[2]), camera_position, look_at, width, height, top_down=top_down)
-            pb = project_point((b[0] + center[0], b[1] + center[1], b[2]), camera_position, look_at, width, height, top_down=top_down)
+            pa = project_point((a[0] + center[0], a[1] + center[1], a[2]), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
+            pb = project_point((b[0] + center[0], b[1] + center[1], b[2]), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
             if pa and pb:
                 draw.line((pa[0], pa[1], pb[0], pb[1]), fill=(36, 43, 45, 38), width=1)
 
@@ -624,13 +658,14 @@ def render_scene_frame(
             width,
             height,
             top_down,
+            fov_degrees,
         )
         return image
 
     draw_items: list[tuple[float, int, dict[str, Any], Vec3, float]] = []
     for index, character in enumerate(scene.get("characters", [])):
         root, facing = root_at(character, scene_time)
-        projected = project_point((root[0], root[1], root[2] + 0.8), camera_position, look_at, width, height, top_down=top_down)
+        projected = project_point((root[0], root[1], root[2] + 0.8), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
         if projected:
             draw_items.append((projected[2], index, character, root, facing))
     draw_items.sort(key=lambda item: item[0])
@@ -640,14 +675,14 @@ def render_scene_frame(
         color = parse_hex_color(str(character.get("color", "")), fallback)
         segments, head, chest = character_segments_at(character, root, facing, scene_time)
         for first, second in segments:
-            pa = project_point(first, camera_position, look_at, width, height, top_down=top_down)
-            pb = project_point(second, camera_position, look_at, width, height, top_down=top_down)
+            pa = project_point(first, camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
+            pb = project_point(second, camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
             if not pa or not pb:
                 continue
             line_width = max(3, int(0.045 * (pa[2] + pb[2]) * 0.5))
             draw.line((pa[0], pa[1], pb[0], pb[1]), fill=(*color, 230), width=line_width)
-        head_p = project_point(head, camera_position, look_at, width, height, top_down=top_down)
-        chest_p = project_point(chest, camera_position, look_at, width, height, top_down=top_down)
+        head_p = project_point(head, camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
+        chest_p = project_point(chest, camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
         if chest_p:
             body_r = max(5, int(0.13 * chest_p[2]))
             draw.ellipse((chest_p[0] - body_r, chest_p[1] - body_r, chest_p[0] + body_r, chest_p[1] + body_r), fill=(255, 255, 255, 225), outline=(*color, 255), width=2)
@@ -1036,9 +1071,9 @@ class OffscreenAvatarRenderer:
         for vertices, faces, vertex_colors in meshes:
             pyrender_scene.add(self.mesh_from_vertices(vertices, faces, vertex_colors))
 
-        camera_position, look_at = camera_pose(scene_payload, scene_time)
+        camera_position, look_at, fov_degrees = camera_state(scene_payload, scene_time)
         top_down = str(scene_payload.get("camera", {}).get("preset", "")) == "top_down"
-        fov = math.radians(38.0 if top_down else 45.0)
+        fov = math.radians(clamp(fov_degrees, 10.0, 120.0))
         focal = 0.5 * self.height / math.tan(fov * 0.5)
         _, radius = scene_center_and_radius(scene_payload)
         camera = self.pyrender.IntrinsicsCamera(
@@ -1187,7 +1222,7 @@ def export_avatar_scene_video(
 
 
 def draw_avatar_floor(draw: Any, scene: dict[str, Any], scene_time: float, width: int, height: int) -> None:
-    camera_position, look_at = camera_pose(scene, scene_time)
+    camera_position, look_at, fov_degrees = camera_state(scene, scene_time)
     top_down = str(scene.get("camera", {}).get("preset", "")) == "top_down"
     center, radius = scene_center_and_radius(scene)
     grid_extent = math.ceil(radius + 1.0)
@@ -1196,16 +1231,16 @@ def draw_avatar_floor(draw: Any, scene: dict[str, Any], scene_time: float, width
             ((index, -grid_extent, 0.0), (index, grid_extent, 0.0)),
             ((-grid_extent, index, 0.0), (grid_extent, index, 0.0)),
         ):
-            pa = project_point((a[0] + center[0], a[1] + center[1], a[2]), camera_position, look_at, width, height, top_down=top_down)
-            pb = project_point((b[0] + center[0], b[1] + center[1], b[2]), camera_position, look_at, width, height, top_down=top_down)
+            pa = project_point((a[0] + center[0], a[1] + center[1], a[2]), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
+            pb = project_point((b[0] + center[0], b[1] + center[1], b[2]), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
             if pa and pb:
                 draw.line((pa[0], pa[1], pb[0], pb[1]), fill=(36, 43, 45, 38), width=1)
 
 
 def draw_avatar_contact_shadow(draw: Any, scene: dict[str, Any], scene_time: float, root: Vec3, width: int, height: int) -> None:
-    camera_position, look_at = camera_pose(scene, scene_time)
+    camera_position, look_at, fov_degrees = camera_state(scene, scene_time)
     top_down = str(scene.get("camera", {}).get("preset", "")) == "top_down"
-    point = project_point((float(root[0]), float(root[1]), 0.018), camera_position, look_at, width, height, top_down=top_down)
+    point = project_point((float(root[0]), float(root[1]), 0.018), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
     if point is None:
         return
     x, y, scale = point

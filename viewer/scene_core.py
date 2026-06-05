@@ -669,6 +669,7 @@ def normalize_camera_keyframes(raw_keyframes: Any) -> list[dict[str, Any]]:
                 "time": max(0.0, float(raw_keyframe.get("time", 0.0))),
                 "position": normalize_vec3(raw_keyframe.get("position", [0.0, -4.0, 2.0])),
                 "look_at": normalize_vec3(raw_keyframe.get("look_at", [0.0, 0.0, 1.0])),
+                "fov_degrees": max(10.0, min(120.0, float(raw_keyframe.get("fov_degrees", 45.0)))),
             }
         )
     keyframes.sort(key=lambda item: (float(item["time"]), str(item["id"])))

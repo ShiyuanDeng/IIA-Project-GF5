@@ -689,6 +689,7 @@ function cameraKeyframes(camera = sceneCamera()) {
     key.time = clamp(Number(key.time) || 0, 0, app.scene?.duration || 0);
     key.position = normalizeCameraPosition(key.position, [0, -4, 2]);
     key.look_at = normalizeCameraPosition(key.look_at, [0, 0, 1]);
+    key.fov_degrees = clamp(Number(key.fov_degrees) || 45, 10, 120);
   });
   camera.keyframes.sort((a, b) => Number(a.time || 0) - Number(b.time || 0));
   return camera.keyframes;
@@ -1931,7 +1932,7 @@ function cameraPoseAt(time) {
   } else {
     position = [lookAt[0] + 0.45 * radius, lookAt[1] + 1.15 * radius, lookAt[2] + height * 0.95];
   }
-  return { position, lookAt };
+  return { position, lookAt, fovDegrees: camera.preset === "top_down" ? 38 : 45 };
 }
 
 function keyframedCameraPoseAt(camera, time) {
@@ -1947,6 +1948,7 @@ function keyframedCameraPoseAt(camera, time) {
       return {
         position: lerpPosition(first.position, second.position, alpha),
         lookAt: lerpPosition(first.look_at, second.look_at, alpha),
+        fovDegrees: first.fov_degrees * (1 - alpha) + second.fov_degrees * alpha,
       };
     }
   }
@@ -1957,6 +1959,7 @@ function cameraPoseFromKey(key) {
   return {
     position: [...key.position],
     lookAt: [...key.look_at],
+    fovDegrees: key.fov_degrees,
   };
 }
 
@@ -2152,7 +2155,7 @@ function projectShot(point, pose, width, height, topDown) {
   const rel = [point[0] - pose.position[0], point[1] - pose.position[1], point[2] - pose.position[2]];
   const depth = dotVec(rel, forward);
   if (depth <= 0.03) return null;
-  const fov = (topDown ? 38 : 45) * Math.PI / 180;
+  const fov = clamp(Number(pose.fovDegrees) || (topDown ? 38 : 45), 10, 120) * Math.PI / 180;
   const focal = 0.5 * height / Math.tan(fov * 0.5);
   return {
     x: width * 0.5 + dotVec(rel, right) * focal / depth,
@@ -3150,6 +3153,7 @@ function renderExportPanel() {
         time: app.currentTime,
         position: [...currentPose.position],
         look_at: [...currentPose.lookAt],
+        fov_degrees: currentPose.fovDegrees || 45,
       });
     }
     renderAll();
@@ -3369,6 +3373,7 @@ function renderCameraKeyInspector(panel, selection) {
     <div class="field"><label>Look-at X</label><input id="cameraLookX" type="number" step="0.05" value="${key.look_at[0]}"></div>
     <div class="field"><label>Look-at Y</label><input id="cameraLookY" type="number" step="0.05" value="${key.look_at[1]}"></div>
     <div class="field"><label>Look-at Z</label><input id="cameraLookZ" type="number" step="0.05" value="${key.look_at[2]}"></div>
+    <div class="field"><label>FOV degrees</label><input id="cameraFovDegrees" type="number" min="10" max="120" step="1" value="${key.fov_degrees}"></div>
     <div class="button-row">
       <button id="snapCameraKeyToPlayhead">Move To Playhead</button>
       <button id="duplicateCameraKey">Duplicate</button>
@@ -3385,6 +3390,7 @@ function renderCameraKeyInspector(panel, selection) {
   $("#cameraLookX").addEventListener("change", (event) => { pushUndoSnapshot(); key.look_at[0] = Number(event.target.value) || 0; renderAll(); });
   $("#cameraLookY").addEventListener("change", (event) => { pushUndoSnapshot(); key.look_at[1] = Number(event.target.value) || 0; renderAll(); });
   $("#cameraLookZ").addEventListener("change", (event) => { pushUndoSnapshot(); key.look_at[2] = Number(event.target.value) || 0; renderAll(); });
+  $("#cameraFovDegrees").addEventListener("change", (event) => { pushUndoSnapshot(); key.fov_degrees = clamp(Number(event.target.value) || 45, 10, 120); renderAll(); });
   $("#snapCameraKeyToPlayhead").addEventListener("click", () => {
     pushUndoSnapshot();
     key.time = app.currentTime;
@@ -4091,6 +4097,7 @@ function addCameraKeyAtPlayhead() {
     time: app.currentTime,
     position: [...pose.position],
     look_at: [...pose.lookAt],
+    fov_degrees: pose.fovDegrees || 45,
   });
   selectCameraKeyById(id);
 }
@@ -4137,6 +4144,7 @@ function duplicateCameraKey(key) {
   clone.time = clamp(snapTime(key.time + timeOffset), 0, app.scene.duration);
   clone.position = [key.position[0] + 0.15, key.position[1] + 0.15, Number(key.position?.[2] || 0)];
   clone.look_at = [key.look_at[0] + 0.15, key.look_at[1] + 0.15, Number(key.look_at?.[2] || 0)];
+  clone.fov_degrees = clamp(Number(key.fov_degrees) || 45, 10, 120);
   camera.keyframes.push(clone);
   selectCameraKeyById(clone.id);
 }
