@@ -394,10 +394,9 @@ function normalizeRootPosition(position) {
 function normalizeEditorScene() {
   if (!Array.isArray(app.scene?.characters)) return;
   sceneCamera();
-  const proxyAsset = defaultProxyAsset();
   app.scene.characters.forEach((character, index) => {
     character.color = normalizeCharacterColor(character.color, index);
-    character.proxy_asset = proxyAsset;
+    if (!app.proxyAssets.includes(character.proxy_asset)) character.proxy_asset = defaultProxyAsset();
     if (!Array.isArray(character.root_keys)) character.root_keys = [];
     character.root_keys.forEach((key) => {
       key.position = normalizeRootPosition(key.position);
@@ -769,6 +768,18 @@ function avatarOptionsHtml(character) {
     options.push(`<option value="${escapeHtml(asset.path)}" ${selected ? "selected" : ""}>${escapeHtml(asset.label)}</option>`);
   }
   if (value && !matched) {
+    options.push(`<option value="${escapeHtml(value)}" selected>${escapeHtml(value)}</option>`);
+  }
+  return options.join("");
+}
+
+function proxyOptionsHtml(character) {
+  const value = app.proxyAssets.includes(character.proxy_asset) ? character.proxy_asset : defaultProxyAsset();
+  const options = app.proxyAssets.map((asset) => {
+    const selected = asset === value;
+    return `<option value="${escapeHtml(asset)}" ${selected ? "selected" : ""}>${escapeHtml(asset)}</option>`;
+  });
+  if (!options.length) {
     options.push(`<option value="${escapeHtml(value)}" selected>${escapeHtml(value)}</option>`);
   }
   return options.join("");
@@ -2303,7 +2314,8 @@ function drawShotCharacter(svg, character, index, root, pose, width, height, top
 }
 
 function drawShotBlockyCharacter(svg, character, index, root, pose, width, height, topDown) {
-  const asset = app.proxyAssetPreviews[defaultProxyAsset()];
+  const assetName = app.proxyAssets.includes(character.proxy_asset) ? character.proxy_asset : defaultProxyAsset();
+  const asset = app.proxyAssetPreviews[assetName] || app.proxyAssetPreviews[defaultProxyAsset()];
   if (!asset || !Array.isArray(asset.joints) || !Array.isArray(asset.parts)) return false;
   const clip = activeClipAt(character, app.currentTime);
   const clipLabel = clip?.clip || "Idle Breathing";
@@ -3350,6 +3362,7 @@ function renderCharacterInspector(panel, selection) {
   panel.innerHTML = `
     <div class="field"><label>Name</label><input id="charLabel" value="${escapeHtml(character.label)}"></div>
     <div class="field"><label>Color</label><div class="color-preset-grid">${colorButtons}</div></div>
+    <div class="field"><label>Preview proxy</label><select id="charProxy">${proxyOptionsHtml(character)}</select></div>
     <div class="field"><label>Final avatar</label><select id="charAvatar">${avatarOptionsHtml(character)}</select></div>
   `;
   $("#charLabel").addEventListener("change", (event) => {
@@ -3369,6 +3382,11 @@ function renderCharacterInspector(panel, selection) {
   $("#charAvatar").addEventListener("change", (event) => {
     pushUndoSnapshot();
     character.avatar_asset = event.target.value;
+    renderAll();
+  });
+  $("#charProxy").addEventListener("change", (event) => {
+    pushUndoSnapshot();
+    character.proxy_asset = event.target.value;
     renderAll();
   });
 }

@@ -108,7 +108,8 @@ def discover_proxy_assets(asset_dir: Path) -> list[str]:
             continue
         if raw.get("asset_format") == "gf5_rigid_character":
             assets.append(str(raw.get("name", path.stem)))
-    return [default_proxy_asset(assets)]
+    preferred = default_proxy_asset(assets)
+    return [preferred] + [asset for asset in assets if asset != preferred]
 
 
 def load_proxy_asset_previews(asset_dir: Path) -> dict[str, dict[str, Any]]:
@@ -600,6 +601,7 @@ def normalize_scene(
     proxy_assets: list[str],
 ) -> dict[str, Any]:
     valid_motion_labels = set(motion_labels(motions))
+    valid_proxy_assets = set(proxy_assets)
     default_motion = next(iter(valid_motion_labels), "Idle Breathing")
     default_asset = default_proxy_asset(proxy_assets)
     scene = {
@@ -617,6 +619,7 @@ def normalize_scene(
         character = normalize_character(
             raw_character,
             default_asset=default_asset,
+            valid_proxy_assets=valid_proxy_assets,
             default_motion=default_motion,
             valid_motion_labels=valid_motion_labels,
             scene_duration=scene["duration"],
@@ -727,6 +730,7 @@ def normalize_character(
     raw: dict[str, Any],
     *,
     default_asset: str,
+    valid_proxy_assets: set[str],
     default_motion: str,
     valid_motion_labels: set[str],
     scene_duration: float,
@@ -736,11 +740,14 @@ def normalize_character(
     raw_track = raw.get("track", raw.get("clips", []))
     track = normalize_track(raw_track, default_motion, valid_motion_labels, scene_duration)
     root_keys = normalize_root_keys(raw.get("root_keys", []), raw_track, scene_duration)
+    proxy_asset = str(raw.get("proxy_asset", default_asset))
+    if proxy_asset not in valid_proxy_assets:
+        proxy_asset = default_asset
     return {
         "id": character_id,
         "label": str(raw.get("label", character_id.replace("_", " ").title())),
         "color": normalize_character_color(raw.get("color"), index),
-        "proxy_asset": default_asset,
+        "proxy_asset": proxy_asset,
         "avatar_asset": str(raw.get("avatar_asset", raw.get("asset", ""))),
         "track": track,
         "root_keys": root_keys,
