@@ -42,6 +42,7 @@ from motion_sequences import (
 from skeleton_profiles import (
     COURSE_BODY_24_PROFILE,
     SMPL_24_PROFILE,
+    SMPLX_55_PROFILE,
     compute_topological_order,
     detect_profile,
     get_profile,
@@ -583,6 +584,7 @@ SMPL_24_PARENTS = (
 )
 
 PACKAGE_SKINNING_VERSION = 5
+PACKAGE_SMPLX_SKINNING_FORMAT = "gf5_smplx55_skinning_weights"
 WORKING_SEQUENCE_LABEL = "Working Sequence"
 DEFAULT_WORKING_SEQUENCE_DURATION = 10.0
 PACKAGE_SKINNING_COORDINATE_SPACE = "up2you_smpl_native_y_up"
@@ -590,6 +592,8 @@ PACKAGE_SKINNING_REST_POSE = "gf5_smpl24_template_neutral_bind_pose"
 PACKAGE_SKINNING_MOTION_POSE_SPACE = "gf5_course_body_24_absolute_local"
 MAX_AVATAR_ZIP_BYTES = 768 * 1024 * 1024
 MAX_AVATAR_EXTRACTED_BYTES = 1536 * 1024 * 1024
+UP2YOU_APOSE_LEFT_SHOULDER_Z = -math.pi / 4.0
+UP2YOU_APOSE_RIGHT_SHOULDER_Z = math.pi / 4.0
 
 
 def avatar_import_label_from_filename(file_name: str) -> str:
@@ -767,6 +771,55 @@ def load_packaged_skinning_weights(
     return (weights / row_sums).astype(np.float32), rest_joints
 
 
+def load_packaged_smplx_skinning_weights(
+    weights_path: Path,
+    *,
+    vertex_count: int,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    if not weights_path.exists():
+        return None
+    with np.load(weights_path, allow_pickle=False) as data:
+        version = int(data["version"]) if "version" in data else 0
+        package_format = str(data["format"]) if "format" in data else ""
+        if package_format != PACKAGE_SMPLX_SKINNING_FORMAT or version < PACKAGE_SKINNING_VERSION:
+            raise ValueError(
+                f"{weights_path.name} is not a current GF5 SMPL-X skinning package. "
+                "Regenerate the avatar package with UP2You tools/package_gf5_avatar.py."
+            )
+        expected_metadata = {
+            "rest_joint_coordinate_space": PACKAGE_SKINNING_COORDINATE_SPACE,
+            "rest_pose": PACKAGE_SKINNING_REST_POSE,
+            "motion_pose_space": PACKAGE_SKINNING_MOTION_POSE_SPACE,
+        }
+        for key, expected in expected_metadata.items():
+            if key not in data or package_metadata_string(data, key) != expected:
+                raise ValueError(
+                    f"{weights_path.name} has unexpected {key}; expected {expected!r}. "
+                    "Regenerate the avatar package with UP2You tools/package_gf5_avatar.py."
+                )
+        if "skinning_weights" not in data:
+            raise ValueError(f"{weights_path.name} does not contain skinning_weights.")
+        if "rest_joints" not in data:
+            raise ValueError(f"{weights_path.name} does not contain rest_joints.")
+        if "joint_names" in data:
+            joint_names = tuple(str(item) for item in data["joint_names"])
+        else:
+            joint_names = SMPLX_55_PROFILE.joint_names
+        weights = np.asarray(data["skinning_weights"], dtype=np.float32)
+        rest_joints = np.asarray(data["rest_joints"], dtype=np.float32)
+    if weights.shape != (vertex_count, len(SMPLX_55_PROFILE.joint_names)):
+        raise ValueError(
+            f"{weights_path.name} has skinning weights with shape {weights.shape}, "
+            f"expected {(vertex_count, len(SMPLX_55_PROFILE.joint_names))}."
+        )
+    if joint_names != SMPLX_55_PROFILE.joint_names:
+        raise ValueError(f"{weights_path.name} uses an unexpected joint order.")
+    if rest_joints.shape != (len(SMPLX_55_PROFILE.joint_names), 3):
+        raise ValueError(f"{weights_path.name} has rest_joints with unexpected shape {rest_joints.shape}.")
+    row_sums = np.clip(weights.sum(axis=1, keepdims=True), 1e-8, None)
+    return (weights / row_sums).astype(np.float32), rest_joints
+
+
 def infer_character_label(character_root: Path) -> str:
     if character_root.name == "outputs":
         if character_root.parent.name.lower() == "up2you":
@@ -789,6 +842,11 @@ def valid_up2you_character_root(path: Path) -> bool:
     )
 
 
+def valid_smplx_character_root(path: Path) -> bool:
+    output_dir = path / "outputs"
+    return output_dir.is_dir() and (output_dir / "smplx_mesh.obj").exists()
+
+
 def iter_up2you_character_roots(search_dir: Path) -> list[Path]:
     if not search_dir.exists():
         return []
@@ -808,6 +866,26 @@ def iter_up2you_character_roots(search_dir: Path) -> list[Path]:
     for candidate in candidates:
         resolved = candidate.resolve()
         if resolved in seen or not valid_up2you_character_root(resolved):
+            continue
+        seen.add(resolved)
+        unique_roots.append(resolved)
+    return unique_roots
+
+
+def iter_smplx_character_roots(search_dir: Path) -> list[Path]:
+    if not search_dir.exists():
+        return []
+
+    candidates: list[Path] = [search_dir]
+    if search_dir.is_dir():
+        candidates.extend(path.parent for path in sorted(search_dir.rglob("outputs")) if path.is_dir())
+        candidates.extend(path / "output" for path in sorted(search_dir.iterdir()) if path.is_dir())
+
+    unique_roots: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in seen or not valid_smplx_character_root(resolved):
             continue
         seen.add(resolved)
         unique_roots.append(resolved)
@@ -866,6 +944,21 @@ def discover_up2you_characters(character_dirs: list[Path]) -> dict[str, Path]:
             unique_label = label
             while unique_label in characters:
                 unique_label = f"{label} ({suffix})"
+                suffix += 1
+            characters[unique_label] = character_root
+    return characters
+
+
+def discover_smplx_characters(character_dirs: list[Path]) -> dict[str, Path]:
+    characters: dict[str, Path] = {}
+    for character_dir in character_dirs:
+        for character_root in iter_smplx_character_roots(character_dir):
+            label = infer_character_label(character_root).replace("UP2You ", "", 1)
+            unique_label = f"SMPL-X {label}"
+            suffix = 2
+            base_label = unique_label
+            while unique_label in characters:
+                unique_label = f"{base_label} ({suffix})"
                 suffix += 1
             characters[unique_label] = character_root
     return characters
@@ -930,6 +1023,8 @@ def discover_asset_sources(
         sources[label] = ("smpl", path)
     for label, path in discover_up2you_characters(character_dirs).items():
         sources[label] = ("up2you", path)
+    for label, path in discover_smplx_characters(character_dirs).items():
+        sources[label] = ("smplx", path)
     return sources
 
 
@@ -1177,6 +1272,243 @@ def load_up2you_character_asset(character_root: Path, _smplx_model_path: Path) -
     )
     asset.joint_palette = build_joint_palette(asset)
     return asset
+
+
+def load_smplx_character_asset(character_root: Path, smplx_model_root: Path) -> AssetData:
+    os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+    import smplx
+
+    smplx_model_root = Path(smplx_model_root).resolve()
+    if smplx_model_root.is_file():
+        smplx_model_root = smplx_model_root.parent
+    model_candidates = (
+        smplx_model_root / "SMPLX_NEUTRAL.pkl",
+        smplx_model_root / "SMPLX_NEUTRAL.npz",
+    )
+    if not smplx_model_root.exists() or not any(path.exists() for path in model_candidates):
+        fallback_paths = []
+        env_model_path = os.environ.get("GF5_SMPLX_MODEL", "").strip()
+        if env_model_path:
+            fallback_paths.append(Path(env_model_path).expanduser())
+        fallback_paths.append(Path("/home/drdeng/UP2You/human_models/models/smplx"))
+        for fallback_path in fallback_paths:
+            fallback_candidates = (
+                fallback_path / "SMPLX_NEUTRAL.pkl",
+                fallback_path / "SMPLX_NEUTRAL.npz",
+            )
+            if fallback_path.exists() and any(path.exists() for path in fallback_candidates):
+                smplx_model_root = fallback_path.resolve()
+                model_candidates = fallback_candidates
+                break
+    if not any(path.exists() for path in model_candidates):
+        expected = " or ".join(str(path) for path in model_candidates)
+        raise FileNotFoundError(f"SMPL-X neutral model not found. Expected {expected}.")
+
+    output_dir = character_root / "outputs"
+    packaged_smplx_weights_path = output_dir / "smplx_skinning_weights.npz"
+    smplx_tpose_mesh_path = output_dir / "smplx_mesh_tpose.obj"
+    smplx_mesh_path = smplx_tpose_mesh_path if smplx_tpose_mesh_path.exists() else output_dir / "smplx_mesh.obj"
+    if not smplx_mesh_path.exists():
+        raise FileNotFoundError(f"No smplx_mesh.obj found under {output_dir}")
+
+    rest_vertices_raw, mesh_faces, vertex_colors = parse_obj_mesh(smplx_mesh_path)
+    model = smplx.SMPLX(str(smplx_model_root), gender="neutral", use_pca=False)
+    joint_count = len(SMPLX_55_PROFILE.joint_names)
+
+    packaged_smplx_skinning = load_packaged_smplx_skinning_weights(
+        packaged_smplx_weights_path,
+        vertex_count=rest_vertices_raw.shape[0],
+    )
+    parents = tuple(int(parent) for parent in model.parents.detach().cpu().numpy()[:joint_count])
+    if packaged_smplx_skinning is None:
+        skinning_weights = model.lbs_weights.detach().cpu().numpy().astype(np.float32)
+        J_regressor = model.J_regressor.detach().cpu().numpy().astype(np.float32)
+        rest_joints_apose_raw = (J_regressor @ rest_vertices_raw).astype(np.float32)
+    else:
+        skinning_weights, rest_joints_raw = packaged_smplx_skinning
+
+    if rest_vertices_raw.shape[0] != skinning_weights.shape[0]:
+        raise ValueError(
+            f"{smplx_mesh_path.name} has {rest_vertices_raw.shape[0]} vertices, "
+            f"but SMPL-X skinning weights expect {skinning_weights.shape[0]}."
+        )
+
+    if packaged_smplx_skinning is None:
+        rest_vertices_raw, rest_joints_raw = repose_smplx_apose_to_tpose(
+            rest_vertices_raw,
+            rest_joints_apose_raw,
+            skinning_weights,
+        )
+    rest_joints = rotate_points_to_viewer(rest_joints_raw)
+    rest_vertices = rotate_points_to_viewer(rest_vertices_raw)
+    ground_translation = np.asarray([0.0, 0.0, -float(rest_vertices[:, 2].min())], dtype=np.float32)
+    rest_positions = rest_joints + ground_translation
+    joints: list[JointSpec] = []
+    bone_edges: list[tuple[int, int]] = []
+    for joint_index, joint_name in enumerate(SMPLX_55_PROFILE.joint_names):
+        parent_index = parents[joint_index]
+        rest_position = np.asarray(rest_positions[joint_index], dtype=np.float32)
+        if parent_index < 0:
+            translation = rest_position.copy()
+        else:
+            translation = rest_position - rest_positions[parent_index]
+            bone_edges.append((parent_index, joint_index))
+        joints.append(
+            JointSpec(
+                name=joint_name,
+                parent=parent_index,
+                translation=np.asarray(translation, dtype=np.float32),
+                rest_position=rest_position,
+            )
+        )
+
+    dominant_joint = np.argmax(skinning_weights, axis=1)
+    one_hot_weights = np.zeros_like(skinning_weights, dtype=np.float32)
+    one_hot_weights[np.arange(skinning_weights.shape[0]), dominant_joint] = 1.0
+    skinned_model_data = SkinnedMeshData(
+        rest_vertices=rest_vertices,
+        rest_joints=rest_joints,
+        skinning_weights=skinning_weights,
+        one_hot_skinning_weights=one_hot_weights,
+        ground_translation=ground_translation,
+    )
+    asset = AssetData(
+        path=character_root,
+        label=infer_character_label(character_root),
+        joints=joints,
+        parts=[],
+        bone_edges=bone_edges,
+        joint_names=SMPLX_55_PROFILE.joint_names,
+        joint_lookup={joint.name: idx for idx, joint in enumerate(joints)},
+        topological_order=compute_topological_order(tuple(joint.parent for joint in joints)),
+        profile_name=SMPLX_55_PROFILE.name,
+        joint_palette=np.zeros((len(joints), 3), dtype=np.uint8),
+        asset_kind="smplx",
+        mesh_vertices=np.asarray(rest_vertices + ground_translation, dtype=np.float32),
+        mesh_faces=mesh_faces,
+        mesh_vertex_colors=vertex_colors,
+        skinned_model_data=skinned_model_data,
+    )
+    asset.joint_palette = build_joint_palette(asset)
+    return asset
+
+
+def smplx_arm_descendant_indices() -> tuple[tuple[int, ...], tuple[int, ...]]:
+    left = tuple(range(16, 17)) + (18, 20) + tuple(range(25, 40))
+    right = tuple(range(17, 18)) + (19, 21) + tuple(range(40, 55))
+    return left, right
+
+
+def repose_smplx_apose_to_tpose(
+    vertices_apose: np.ndarray,
+    joints_apose: np.ndarray,
+    skinning_weights: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    vertices_apose = np.asarray(vertices_apose, dtype=np.float32)
+    joints_apose = np.asarray(joints_apose, dtype=np.float32)
+    skinning_weights = np.asarray(skinning_weights, dtype=np.float32)
+    joints_tpose = joints_apose.copy()
+
+    left_arm, right_arm = smplx_arm_descendant_indices()
+    R_inv_left = rotation_z(-UP2YOU_APOSE_LEFT_SHOULDER_Z)
+    R_inv_right = rotation_z(-UP2YOU_APOSE_RIGHT_SHOULDER_Z)
+    left_shoulder = joints_apose[16].copy()
+    right_shoulder = joints_apose[17].copy()
+    for joint_index in left_arm:
+        if joint_index == 16:
+            continue
+        joints_tpose[joint_index] = left_shoulder + R_inv_left @ (joints_apose[joint_index] - left_shoulder)
+    for joint_index in right_arm:
+        if joint_index == 17:
+            continue
+        joints_tpose[joint_index] = right_shoulder + R_inv_right @ (joints_apose[joint_index] - right_shoulder)
+
+    joint_count = joints_apose.shape[0]
+    R_world = np.repeat(np.eye(3, dtype=np.float32)[None, :, :], joint_count, axis=0)
+    R_world[list(left_arm)] = rotation_z(UP2YOU_APOSE_LEFT_SHOULDER_Z)
+    R_world[list(right_arm)] = rotation_z(UP2YOU_APOSE_RIGHT_SHOULDER_Z)
+
+    G = np.zeros((joint_count, 4, 4), dtype=np.float32)
+    G[:, 3, 3] = 1.0
+    for joint_index in range(joint_count):
+        R = R_world[joint_index]
+        G[joint_index, :3, :3] = R
+        G[joint_index, :3, 3] = joints_apose[joint_index] - R @ joints_tpose[joint_index]
+
+    M = np.einsum("vj,jkl->vkl", skinning_weights, G)
+    vertices_hom = np.concatenate(
+        [vertices_apose, np.ones((vertices_apose.shape[0], 1), dtype=np.float32)],
+        axis=1,
+    )
+    vertices_tpose = np.linalg.solve(M, vertices_hom[..., None]).squeeze(-1)[:, :3]
+    return vertices_tpose.astype(np.float32), joints_tpose.astype(np.float32)
+
+
+SMPLX_FINGER_POSE_JOINTS = {
+    "left_index1": 0.85,
+    "left_index2": 1.05,
+    "left_index3": 0.85,
+    "left_middle1": 0.92,
+    "left_middle2": 1.08,
+    "left_middle3": 0.88,
+    "left_ring1": 0.92,
+    "left_ring2": 1.08,
+    "left_ring3": 0.88,
+    "left_pinky1": 0.82,
+    "left_pinky2": 1.00,
+    "left_pinky3": 0.82,
+    "left_thumb1": 0.45,
+    "left_thumb2": 0.72,
+    "left_thumb3": 0.58,
+    "right_index1": 0.85,
+    "right_index2": 1.05,
+    "right_index3": 0.85,
+    "right_middle1": 0.92,
+    "right_middle2": 1.08,
+    "right_middle3": 0.88,
+    "right_ring1": 0.92,
+    "right_ring2": 1.08,
+    "right_ring3": 0.88,
+    "right_pinky1": 0.82,
+    "right_pinky2": 1.00,
+    "right_pinky3": 0.82,
+    "right_thumb1": 0.45,
+    "right_thumb2": 0.72,
+    "right_thumb3": 0.58,
+}
+
+SMPLX_THUMB_INWARD_POSE_JOINTS = {
+    "left_thumb1": -0.70,
+    "left_thumb2": -0.35,
+    "right_thumb1": 0.70,
+    "right_thumb2": 0.35,
+}
+
+
+def apply_smplx_hand_pose(
+    asset: AssetData,
+    local_rotations: list[Mat3f],
+    fist_weight: float,
+) -> list[Mat3f]:
+    if asset.profile_name != SMPLX_55_PROFILE.name:
+        return local_rotations
+    weight = max(0.0, min(1.0, float(fist_weight)))
+    if weight <= 1e-6:
+        return local_rotations
+    posed = [np.asarray(rotation, dtype=np.float32).copy() for rotation in local_rotations]
+    for joint_name, fist_angle in SMPLX_FINGER_POSE_JOINTS.items():
+        joint_index = asset.joint_lookup.get(joint_name)
+        if joint_index is None:
+            continue
+        side_sign = -1.0 if joint_name.startswith("left_") else 1.0
+        target_rotation = rotation_y(side_sign * fist_angle * weight * 1.6)
+        posed[joint_index] = posed[joint_index] @ target_rotation
+    for joint_name, inward_angle in SMPLX_THUMB_INWARD_POSE_JOINTS.items():
+        joint_index = asset.joint_lookup.get(joint_name)
+        if joint_index is None:
+            continue
+        posed[joint_index] = posed[joint_index] @ rotation_z(inward_angle * weight)
+    return posed
 
 
 def pose_sample_to_asset_local_rotations(asset: AssetData, pose_sample: PoseSample) -> list[Mat3f]:
@@ -1544,10 +1876,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--smplx-model",
-        default="",
+        default=str(project_root / "assets" / "smplx"),
         help=(
-            "Legacy option kept for older launch scripts. Current avatar packages "
-            "must include precomputed GF5 SMPL-24 skinning weights."
+            "Directory containing SMPLX_NEUTRAL.pkl or SMPLX_NEUTRAL.npz for "
+            "optional 55-joint SMPL-X avatar loading."
         ),
     )
     parser.add_argument(
@@ -2773,6 +3105,8 @@ def main() -> None:
             asset_kind, asset_path = asset_sources[asset_dropdown.value]
             if asset_kind == "smpl":
                 asset = load_smpl_asset(asset_path)
+            elif asset_kind == "smplx":
+                asset = load_smplx_character_asset(asset_path, smplx_model_path)
             elif asset_kind == "up2you":
                 asset = load_up2you_character_asset(asset_path, smplx_model_path)
             else:

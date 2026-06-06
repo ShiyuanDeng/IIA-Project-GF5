@@ -44,6 +44,65 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - hold/cut
 - Draft render selects each character's configured `proxy_asset` where available.
 
+## SMPL-X Final Avatars And Hand Poses
+
+- Added an optional 55-joint SMPL-X final-avatar path alongside the existing 24-joint UP2You package path.
+  - Existing `UP2You: <name>` final avatars still use `animation_lowres.obj` and `animation_lowres_skinning_weights.npz`.
+  - New `SMPL-X: <name>` final avatars use the full SMPL-X mesh and 55-joint skinning.
+  - Absolute-path `avatar_asset` values still resolve to the old UP2You path for backward compatibility.
+- Added `smplx_55` skeleton profile.
+  - Includes SMPL-X body joints, jaw/eyes, and finger chains.
+  - Existing 24-joint course motions retarget onto matching SMPL-X body joints.
+  - Missing face/finger motion defaults to neutral unless a scene clip hand pose overrides it.
+- Added per-clip `hand_pose` scene metadata.
+  - Supported values: `natural`, `fist`.
+  - Missing or unknown values default to `natural`.
+  - The browser Scene Editor clip inspector now exposes a `Hand pose` dropdown.
+  - The motion library files are not modified; the hand pose is stored per scene clip instance.
+- Added hand-pose blending during clip transitions.
+  - `natural` to `fist` and `fist` to `natural` interpolate through the same blend windows as body motion clips.
+  - Blocky/proxy preview does not show SMPL-X finger pose because preview proxies are still SMPL-24/rigid assets.
+  - Final SMPL-X avatar export applies the hand pose before FK and mesh skinning.
+- Added a simple SMPL-X fist preset.
+  - Finger curls are mirrored between left and right hands.
+  - Thumbs include an inward tuck component.
+  - The preset is currently hard-coded in `viewer/asset_viewer.py`; future tuning would benefit from Asset Viewer sliders or a JSON hand-pose preset file.
+- Updated final-avatar discovery to expose both modes when an avatar package supports them:
+  - `UP2You: Zohaib`
+  - `SMPL-X: Zohaib`
+  - Similar labels are shown for Ivan, Sean, SalaryMan_1, and SalaryMan_2.
+- The browser Scene Editor does not interpret avatar kinds itself.
+  - It stores `avatar_asset` as the selected label string, for example `SMPL-X: Zohaib`.
+  - The Python scene/render layer resolves that label to `kind: "smplx"` or `kind: "up2you"` during export.
+  - Path-valued legacy scenes continue to resolve to `up2you` for compatibility.
+
+## UP2You GF5 Avatar Packaging
+
+- Updated `/home/drdeng/UP2You/tools/package_gf5_avatar.py` to package SMPL-X sidecars for GF5.
+  - Existing 24-joint outputs are still generated:
+    - `outputs/animation_lowres.obj`
+    - `outputs/animation_lowres_skinning_weights.npz`
+    - `outputs/smplx_mesh.obj`
+  - New SMPL-X outputs are also generated:
+    - `outputs/smplx_mesh_tpose.obj`
+    - `outputs/smplx_skinning_weights.npz`
+- `smplx_skinning_weights.npz` stores:
+  - `format = gf5_smplx55_skinning_weights`
+  - `joint_names` with 55 SMPL-X joints
+  - `skinning_weights` with shape `(10475, 55)`
+  - `rest_joints` with shape `(55, 3)`
+  - `source_mesh = smplx_mesh_tpose.obj`
+- The UP2You packer now reposes the full SMPL-X mesh from UP2You A-pose into the GF5 rest-pose convention.
+  - This keeps the elbow/wrist placement aligned with the SMPL-24/course-motion convention.
+  - GF5 prefers packaged `smplx_mesh_tpose.obj` and `smplx_skinning_weights.npz`.
+  - GF5 still has a fallback runtime A-pose-to-T-pose path for older avatar packages that only have `smplx_mesh.obj`.
+- Regenerated local avatar packages for:
+  - `libraries/avatars/Ivan`
+  - `libraries/avatars/SalaryMan_1`
+  - `libraries/avatars/SalaryMan_2`
+  - `libraries/avatars/Sean`
+  - `libraries/avatars/Zohaib`
+
 ## Added Blocky Assets
 
 - Added `assets/blocky/magic_box.asset.json`.

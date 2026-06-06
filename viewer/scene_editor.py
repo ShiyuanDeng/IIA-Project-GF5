@@ -91,6 +91,7 @@ class TrackClip:
     trim_start: float = 0.0
     trim_end: float | None = None
     root_mode: str = "path"
+    hand_pose: str = "natural"
     root_start: Vec3f = field(default_factory=lambda: np.zeros(3, dtype=np.float32))
     root_end: Vec3f = field(default_factory=lambda: np.zeros(3, dtype=np.float32))
     facing_degrees: float = 0.0
@@ -255,12 +256,18 @@ def track_clip_from_json(raw: dict[str, Any]) -> TrackClip:
             else max(0.0, float(raw.get("trim_end")))
         ),
         root_mode=str(raw.get("root_mode", "path")),
+        hand_pose=normalize_hand_pose(raw.get("hand_pose")),
         root_start=np.asarray(raw.get("root_start", [0.0, 0.0, 0.0]), dtype=np.float32),
         root_end=np.asarray(raw.get("root_end", raw.get("root_start", [0.0, 0.0, 0.0])), dtype=np.float32),
         facing_degrees=float(raw.get("facing_degrees", 0.0)),
         blend_in=track_clip_blend_from_json(raw, "blend_in", duration),
         blend_out=track_clip_blend_from_json(raw, "blend_out", duration),
     )
+
+
+def normalize_hand_pose(value: Any) -> str:
+    text = str(value or "natural").strip().lower()
+    return text if text in {"natural", "fist"} else "natural"
 
 
 def track_clip_blend_from_json(raw: dict[str, Any], key: str, duration: float) -> float:
@@ -281,6 +288,8 @@ def track_clip_to_json(clip: TrackClip) -> dict[str, Any]:
     }
     if clip.trim_end is not None:
         payload["trim_end"] = round(float(clip.trim_end), 6)
+    if normalize_hand_pose(clip.hand_pose) != "natural":
+        payload["hand_pose"] = normalize_hand_pose(clip.hand_pose)
     if clip.blend_in > 0.0:
         payload["blend_in"] = round(float(clip.blend_in), 6)
     if clip.blend_out > 0.0:
@@ -1061,6 +1070,51 @@ def blend_pose_samples(first: PoseSample, second: PoseSample, alpha: float) -> P
 def smoothstep(alpha: float) -> float:
     alpha = max(0.0, min(1.0, float(alpha)))
     return alpha * alpha * (3.0 - 2.0 * alpha)
+
+
+def hand_pose_value(clip: TrackClip | None) -> float:
+    return 1.0 if clip is not None and normalize_hand_pose(clip.hand_pose) == "fist" else 0.0
+
+
+def hand_pose_weight_at(character: SceneCharacter, scene_time: float) -> float:
+    ordered = sorted(character.track, key=lambda item: float(item.start))
+    for first, second in zip(ordered[:-1], ordered[1:]):
+        window = clip_transition_window(first, second)
+        if window is None:
+            continue
+        window_start, window_end = window
+        if window_end <= window_start + 1e-6:
+            continue
+        if window_start <= scene_time <= window_end:
+            alpha = smoothstep((scene_time - window_start) / (window_end - window_start))
+            return (1.0 - alpha) * hand_pose_value(first) + alpha * hand_pose_value(second)
+
+    for index, clip in enumerate(ordered):
+        start = float(clip.start)
+        end = clip_end_time(clip)
+        blend_in = effective_clip_blend_in(clip)
+        blend_out = effective_clip_blend_out(clip)
+        if blend_in > 1e-6 and start - blend_in <= scene_time < start:
+            previous = ordered[index - 1] if index > 0 else None
+            if previous is not None:
+                previous_end = clip_end_time(previous)
+                if scene_time <= previous_end + 1e-6 or start - previous_end <= MAX_TRANSITION_GAP_SECONDS:
+                    continue
+            alpha = smoothstep((scene_time - (start - blend_in)) / blend_in)
+            return alpha * hand_pose_value(clip)
+        if blend_out > 1e-6 and end < scene_time <= end + blend_out:
+            next_clip = ordered[index + 1] if index < len(ordered) - 1 else None
+            if next_clip is not None:
+                next_start = float(next_clip.start)
+                if scene_time >= next_start - 1e-6 or next_start - end <= MAX_TRANSITION_GAP_SECONDS:
+                    continue
+            alpha = smoothstep((scene_time - end) / blend_out)
+            return (1.0 - alpha) * hand_pose_value(clip)
+
+    for clip in ordered:
+        if clip.start <= scene_time <= clip_end_time(clip):
+            return hand_pose_value(clip)
+    return 0.0
 
 
 def interpolate_angle_degrees(start: float, end: float, alpha: float) -> float:
@@ -2130,6 +2184,7 @@ def main() -> None:
             trim_start=clip.trim_start,
             trim_end=clip.trim_end,
             root_mode=clip.root_mode,
+            hand_pose=clip.hand_pose,
             blend_in=clip.blend_in,
             blend_out=clip.blend_out,
         )

@@ -913,8 +913,14 @@ def resolve_avatar_asset(value: str, avatar_assets: list[dict[str, str]]) -> dic
     if not text:
         return None
     for asset in avatar_assets:
-        if text in {asset.get("label", ""), asset.get("path", "")}:
+        if text == asset.get("label", ""):
             return asset
+    path_matches = [asset for asset in avatar_assets if text == asset.get("path", "")]
+    if path_matches:
+        for asset in path_matches:
+            if asset.get("kind") == "up2you":
+                return asset
+        return path_matches[0]
     path = Path(text).expanduser()
     if path.exists():
         return {"label": path.name, "path": str(path), "kind": "up2you"}
@@ -1150,9 +1156,17 @@ def export_avatar_scene_video(
     if Image is None or ImageDraw is None:
         raise RuntimeError("Pillow is required for video export. Install pillow in the GF5 environment.") from PIL_IMPORT_ERROR
 
-    from asset_viewer import load_asset, load_smpl_asset, load_up2you_character_asset, pose_sample_to_asset_local_rotations
+    from asset_viewer import (
+        apply_smplx_hand_pose,
+        load_asset,
+        load_smpl_asset,
+        load_smplx_character_asset,
+        load_up2you_character_asset,
+        pose_sample_to_asset_local_rotations,
+    )
     from scene_editor import (
         discover_motion_library,
+        hand_pose_weight_at,
         scene_from_json,
         sample_character_pose,
         transform_world_pose,
@@ -1181,6 +1195,8 @@ def export_avatar_scene_video(
                 asset = load_asset(avatar_path)
             elif avatar_kind == "smpl":
                 asset = load_smpl_asset(avatar_path)
+            elif avatar_kind == "smplx":
+                asset = load_smplx_character_asset(avatar_path, project_root / "assets" / "smplx")
             else:
                 asset = load_up2you_character_asset(avatar_path, Path(""))
         except Exception as exc:
@@ -1217,6 +1233,11 @@ def export_avatar_scene_video(
                 draw_avatar_contact_shadow(draw, scene, scene_time, stage_root, width, height)
                 asset = avatar_cache[character.character_id]
                 local_rotations = pose_sample_to_asset_local_rotations(asset, pose_sample)
+                local_rotations = apply_smplx_hand_pose(
+                    asset,
+                    local_rotations,
+                    hand_pose_weight_at(character, scene_time),
+                )
                 world_rotations, world_positions = transform_world_pose(
                     asset,
                     local_rotations,

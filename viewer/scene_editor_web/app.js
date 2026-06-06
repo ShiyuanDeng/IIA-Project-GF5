@@ -81,6 +81,7 @@ const ROOT_CONTRACT_LABELS = {
   facing_only: "turn in place",
   native_travel: "original travel",
 };
+const HAND_POSES = new Set(["natural", "fist"]);
 const COURSE_BODY_JOINTS = [
   "pelvis",
   "left_hip",
@@ -406,10 +407,16 @@ function normalizeEditorScene() {
       const motion = motionByLabel(clip.clip);
       clip.trim_start = normalizedClipTrimStart(clip, motion);
       if (hasClipTrimEndValue(clip)) clip.trim_end = normalizedClipTrimEnd(clip, motion);
+      clip.hand_pose = normalizedHandPose(clip.hand_pose);
       clip.blend_in = normalizedClipBlend(clip, "blend_in");
       clip.blend_out = normalizedClipBlend(clip, "blend_out");
     });
   });
+}
+
+function normalizedHandPose(value) {
+  const text = String(value || "natural").trim().toLowerCase();
+  return HAND_POSES.has(text) ? text : "natural";
 }
 
 function normalizeCameraPosition(value, fallback = [0, 0, 0]) {
@@ -763,9 +770,9 @@ function avatarOptionsHtml(character) {
   const options = [`<option value="" ${value ? "" : "selected"}>${app.avatarAssets.length ? "Not assigned" : "No final avatar sources found"}</option>`];
   let matched = !value;
   for (const asset of app.avatarAssets) {
-    const selected = value === asset.path || value === asset.label;
+    const selected = value === asset.label || (value === asset.path && asset.kind === "up2you");
     matched = matched || selected;
-    options.push(`<option value="${escapeHtml(asset.path)}" ${selected ? "selected" : ""}>${escapeHtml(asset.label)}</option>`);
+    options.push(`<option value="${escapeHtml(asset.label)}" ${selected ? "selected" : ""}>${escapeHtml(asset.label)}</option>`);
   }
   if (value && !matched) {
     options.push(`<option value="${escapeHtml(value)}" selected>${escapeHtml(value)}</option>`);
@@ -3419,6 +3426,7 @@ function renderClipInspector(panel, selection) {
       <div class="field"><label>Blend out</label><input id="clipBlendOut" type="number" min="0" step="0.05" value="${normalizedClipBlendOut(clip)}"></div>
     </div>
     <div class="field"><label>Root travel</label><select id="clipRoot"><option value="path" ${clip.root_mode === "path" ? "selected" : ""}>Follow scene path</option><option value="native" ${clip.root_mode === "native" ? "selected" : ""}>Use original travel</option></select></div>
+    <div class="field"><label>Hand pose</label><select id="clipHandPose"><option value="natural" ${normalizedHandPose(clip.hand_pose) === "natural" ? "selected" : ""}>Natural</option><option value="fist" ${normalizedHandPose(clip.hand_pose) === "fist" ? "selected" : ""}>Fist</option></select></div>
     <div class="button-row">
       <button id="duplicateClip">Duplicate</button>
     </div>
@@ -3444,6 +3452,7 @@ function renderClipInspector(panel, selection) {
   $("#clipBlendIn").addEventListener("change", (event) => { pushUndoSnapshot(); clip.blend_in = clamp(Number(event.target.value) || 0, 0, clip.duration); renderAll(); });
   $("#clipBlendOut").addEventListener("change", (event) => { pushUndoSnapshot(); clip.blend_out = clamp(Number(event.target.value) || 0, 0, clip.duration); renderAll(); });
   $("#clipRoot").addEventListener("change", (event) => { pushUndoSnapshot(); clip.root_mode = event.target.value; renderAll(); });
+  $("#clipHandPose").addEventListener("change", (event) => { pushUndoSnapshot(); clip.hand_pose = normalizedHandPose(event.target.value); renderAll(); });
   $("#duplicateClip").addEventListener("click", () => duplicateClip(character, clip));
 }
 
@@ -4232,6 +4241,7 @@ function insertClipOnCharacter(character, label, startTime) {
     trim_start: 0,
     trim_end: null,
     root_mode: defaultRootModeForMotion(motion),
+    hand_pose: "natural",
     blend_in: DEFAULT_CLIP_BLEND_SECONDS,
     blend_out: DEFAULT_CLIP_BLEND_SECONDS,
   };

@@ -160,6 +160,11 @@ def valid_avatar_root(path: Path) -> bool:
     return output_dir.is_dir() and animation_mesh.exists() and weights.exists() and smplx_mesh.exists()
 
 
+def valid_smplx_avatar_root(path: Path) -> bool:
+    output_dir = path / "outputs"
+    return output_dir.is_dir() and (output_dir / "smplx_mesh.obj").exists()
+
+
 def infer_avatar_label(path: Path) -> str:
     name = path.name
     if name == "output" and path.parent.name:
@@ -200,7 +205,7 @@ def iter_avatar_roots(search_dir: Path) -> list[Path]:
     seen: set[Path] = set()
     for candidate in candidates:
         resolved = candidate.resolve()
-        if resolved in seen or not valid_avatar_root(resolved):
+        if resolved in seen or not (valid_avatar_root(resolved) or valid_smplx_avatar_root(resolved)):
             continue
         seen.add(resolved)
         roots.append(resolved)
@@ -241,7 +246,10 @@ def discover_avatar_assets(project_root: Path) -> list[dict[str, str]]:
     ]
     for search_dir in search_dirs:
         for root in iter_avatar_roots(search_dir):
-            add_asset(f"UP2You: {infer_avatar_label(root)}", root, "up2you")
+            if valid_avatar_root(root):
+                add_asset(f"UP2You: {infer_avatar_label(root)}", root, "up2you")
+            if valid_smplx_avatar_root(root):
+                add_asset(f"SMPL-X: {infer_avatar_label(root)}", root, "smplx")
     return sorted(assets, key=lambda item: (natural_sort_key(item["label"]), item["path"]))
 
 
@@ -783,6 +791,7 @@ def normalize_track(
                 "trim_start": max(0.0, float(raw_clip.get("trim_start", 0.0))),
                 "trim_end": normalize_optional_float(raw_clip.get("trim_end")),
                 "root_mode": str(raw_clip.get("root_mode", "path")) if str(raw_clip.get("root_mode", "path")) in {"path", "native"} else "path",
+                "hand_pose": normalize_hand_pose(raw_clip.get("hand_pose")),
                 "blend_in": round(blend_in, 6),
                 "blend_out": round(blend_out, 6),
                 "_legacy_root_start": raw_clip.get("root_start"),
@@ -796,6 +805,11 @@ def normalize_track(
         item.pop("_legacy_root_end", None)
         item.pop("_legacy_facing", None)
     return result
+
+
+def normalize_hand_pose(value: Any) -> str:
+    text = str(value or "natural").strip().lower()
+    return text if text in {"natural", "fist"} else "natural"
 
 
 def normalize_optional_float(value: Any) -> float | None:
