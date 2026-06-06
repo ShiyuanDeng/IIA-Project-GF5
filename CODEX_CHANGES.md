@@ -55,6 +55,32 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - One visible low-poly sphere attached to `pelvis`.
   - Available as both `Preview proxy: Magic Sphere` and `Final avatar: Blocky: Magic Sphere`.
 
+## OBJ Mesh Import
+
+- Added `assets/blocky/import_obj_asset.py`.
+  - Converts a Wavefront `.obj` plus optional `.mtl` into a GF5 `.asset.json`.
+  - Splits OBJ geometry by object/group/material run into colored rigid parts.
+  - Copies the SMPL-24 proxy skeleton so imported assets remain motion-compatible.
+  - Lets the user attach the imported mesh to one joint such as `pelvis`, `right_hand`, `head`, etc.
+- Added `assets/blocky/IMPORT_OBJ_README.md`.
+  - Documents the supported OBJ/MTL subset, coordinate system, importer commands, and limitations.
+
+Recommended source pipeline for object meshes:
+
+1. Get or make a low-poly model from a 3D library, phone scan, or text/image-to-3D tool.
+2. Open the model in Blender.
+3. Clean it up: apply transforms, reduce triangle count if needed, and assign simple material colors.
+4. Export from Blender as Wavefront OBJ with a matching MTL file.
+5. Run `assets/blocky/import_obj_asset.py` to generate `assets/blocky/<name>.asset.json`.
+
+Good source categories:
+
+- 3D libraries such as Sketchfab or Objaverse, with license checked before use.
+- Phone scanning tools such as Polycam or Scaniverse for real objects.
+- AI text/image-to-3D tools such as Meshy for quick fantasy props.
+
+For this renderer, simple low-poly OBJ/MTL assets with material colors work better than dense textured scans.
+
 ## Workflow / Repo
 
 - Disabled the student release audit workflow by renaming:
