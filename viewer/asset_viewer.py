@@ -1458,63 +1458,84 @@ def repose_smplx_apose_to_tpose(
     return vertices_tpose.astype(np.float32), joints_tpose.astype(np.float32)
 
 
-# Finger flexion angles in radians at fist_weight=1.0. Y-axis in the viewer joint
-# frame corresponds to finger flexion. MCP (*1) joints near 90° give a tight fist.
-SMPLX_FINGER_POSE_JOINTS = {
-    "left_index1": 1.55,
-    "left_index2": 1.68,
-    "left_index3": 1.36,
-    "left_middle1": 1.57,
-    "left_middle2": 1.73,
-    "left_middle3": 1.41,
-    "left_ring1": 1.57,
-    "left_ring2": 1.73,
-    "left_ring3": 1.41,
-    "left_pinky1": 1.47,
-    "left_pinky2": 1.60,
-    "left_pinky3": 1.31,
-    "left_thumb1": 0.90,
-    "left_thumb2": 1.15,
-    "left_thumb3": 0.93,
-    "right_index1": 1.55,
-    "right_index2": 1.68,
-    "right_index3": 1.36,
-    "right_middle1": 1.57,
-    "right_middle2": 1.73,
-    "right_middle3": 1.41,
-    "right_ring1": 1.57,
-    "right_ring2": 1.73,
-    "right_ring3": 1.41,
-    "right_pinky1": 1.47,
-    "right_pinky2": 1.60,
-    "right_pinky3": 1.31,
-    "right_thumb1": 0.90,
-    "right_thumb2": 1.15,
-    "right_thumb3": 0.93,
-}
+# ---------------------------------------------------------------------------
+# Hand-pose preset system
+# ---------------------------------------------------------------------------
 
-# Z-axis thumb adduction — tucks thumb across index/middle fingers.
-# thumb3 included so the distal segment presses in fully.
-SMPLX_THUMB_INWARD_POSE_JOINTS = {
-    "left_thumb1": 0.88,
-    "left_thumb2": 0.44,
-    "left_thumb3": 0.24,
-    "right_thumb1": -0.88,
-    "right_thumb2": -0.44,
-    "right_thumb3": -0.24,
-}
+_HANDPOSE_SEARCH_DIR = Path(__file__).resolve().parent.parent / "libraries" / "hand_poses" / "smplx"
+_hand_pose_cache: dict[str, dict[str, Mat3f]] = {}
 
-# Slight wrist flexion completes the fist silhouette.
-SMPLX_WRIST_POSE_JOINTS = {
-    "left_wrist": 0.22,
-    "right_wrist": 0.22,
-}
 
-# Pinky adduction — fans pinky inward toward ring finger.
-SMPLX_PINKY_ADDUCTION_JOINTS = {
-    "left_pinky1": -0.28,
-    "right_pinky1": 0.28,
-}
+def _euler_xyz_deg_to_matrix(x: float, y: float, z: float) -> Mat3f:
+    """R_x(x) @ R_y(y) @ R_z(z) from XYZ degrees."""
+    return (rotation_x(math.radians(x)) @ rotation_y(math.radians(y)) @ rotation_z(math.radians(z))).astype(np.float32)
+
+
+def _scale_rotation(R: Mat3f, t: float) -> Mat3f:
+    """Interpolate from identity to R at parameter t via axis-angle scaling."""
+    t = float(np.clip(t, 0.0, 1.0))
+    if t <= 1e-7:
+        return np.eye(3, dtype=np.float32)
+    if t >= 1.0 - 1e-7:
+        return np.asarray(R, dtype=np.float32)
+    R = np.asarray(R, dtype=np.float32)
+    cos_angle = float(np.clip((np.trace(R) - 1.0) / 2.0, -1.0, 1.0))
+    angle = math.acos(cos_angle)
+    if angle < 1e-7:
+        return np.eye(3, dtype=np.float32)
+    sin_angle = math.sin(angle)
+    axis = np.asarray([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]], dtype=np.float32) / (2.0 * sin_angle)
+    a = angle * t
+    c, s = math.cos(a), math.sin(a)
+    K = np.asarray([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]], dtype=np.float32)
+    return (np.eye(3, dtype=np.float32) + s * K + (1.0 - c) * (K @ K)).astype(np.float32)
+
+
+def _builtin_fist_preset() -> dict[str, Mat3f]:
+    # [x_deg, y_deg, z_deg] per joint. Rotation applied as R_x @ R_y @ R_z.
+    # Side sign is baked: left uses negative Y to curl, right uses positive.
+    # Thumb gets both Y (curl) and Z (tuck across palm). Pinky gets Z adduction.
+    joints: dict[str, tuple[float, float, float]] = {
+        "left_index1":  (0,  -89,   0), "left_index2":  (0,  -96,   0), "left_index3":  (0,  -78,  0),
+        "left_middle1": (0,  -90,   0), "left_middle2": (0,  -99,   0), "left_middle3": (0,  -81,  0),
+        "left_ring1":   (0,  -90,   0), "left_ring2":   (0,  -99,   0), "left_ring3":   (0,  -81,  0),
+        "left_pinky1":  (0,  -84, -16), "left_pinky2":  (0,  -92,   0), "left_pinky3":  (0,  -75,  0),
+        "left_thumb1":  (0,  -52,  50), "left_thumb2":  (0,  -66,  25), "left_thumb3":  (0,  -53,  14),
+        "left_wrist":   (0,  -13,   0),
+        "right_index1":  (0,  89,   0), "right_index2":  (0,  96,   0), "right_index3":  (0,  78,  0),
+        "right_middle1": (0,  90,   0), "right_middle2": (0,  99,   0), "right_middle3": (0,  81,  0),
+        "right_ring1":   (0,  90,   0), "right_ring2":   (0,  99,   0), "right_ring3":   (0,  81,  0),
+        "right_pinky1":  (0,  84,  16), "right_pinky2":  (0,  92,   0), "right_pinky3":  (0,  75,  0),
+        "right_thumb1":  (0,  52, -50), "right_thumb2":  (0,  66, -25), "right_thumb3":  (0,  53, -14),
+        "right_wrist":   (0,  13,   0),
+    }
+    return {name: _euler_xyz_deg_to_matrix(x, y, z) for name, (x, y, z) in joints.items()}
+
+
+def load_hand_pose_preset(name: str) -> dict[str, Mat3f]:
+    """Return joint_name → rotation matrix for a named hand pose at full strength.
+
+    Searches libraries/hand_poses/smplx/<name>.handpose.json first, then falls
+    back to built-ins so render never breaks on a missing file.
+    """
+    if name in _hand_pose_cache:
+        return _hand_pose_cache[name]
+    path = _HANDPOSE_SEARCH_DIR / f"{name}.handpose.json"
+    if path.exists():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if raw.get("format") == "gf5_hand_pose":
+                preset: dict[str, Mat3f] = {}
+                for joint_name, angles in raw.get("joint_rotations", {}).items():
+                    if isinstance(angles, (list, tuple)) and len(angles) >= 3:
+                        preset[joint_name] = _euler_xyz_deg_to_matrix(float(angles[0]), float(angles[1]), float(angles[2]))
+                _hand_pose_cache[name] = preset
+                return preset
+        except Exception:
+            pass
+    preset = _builtin_fist_preset() if name == "fist" else {}
+    _hand_pose_cache[name] = preset
+    return preset
 
 
 def apply_smplx_hand_pose(
@@ -1527,29 +1548,13 @@ def apply_smplx_hand_pose(
     weight = max(0.0, min(1.0, float(fist_weight)))
     if weight <= 1e-6:
         return local_rotations
-    posed = [np.asarray(rotation, dtype=np.float32).copy() for rotation in local_rotations]
-    for joint_name, fist_angle in SMPLX_FINGER_POSE_JOINTS.items():
+    fist_preset = load_hand_pose_preset("fist")
+    posed = [np.asarray(r, dtype=np.float32).copy() for r in local_rotations]
+    for joint_name, target_rotation in fist_preset.items():
         joint_index = asset.joint_lookup.get(joint_name)
         if joint_index is None:
             continue
-        side_sign = -1.0 if joint_name.startswith("left_") else 1.0
-        posed[joint_index] = posed[joint_index] @ rotation_y(side_sign * fist_angle * weight)
-    for joint_name, inward_angle in SMPLX_THUMB_INWARD_POSE_JOINTS.items():
-        joint_index = asset.joint_lookup.get(joint_name)
-        if joint_index is None:
-            continue
-        posed[joint_index] = posed[joint_index] @ rotation_z(inward_angle * weight)
-    for joint_name, wrist_angle in SMPLX_WRIST_POSE_JOINTS.items():
-        joint_index = asset.joint_lookup.get(joint_name)
-        if joint_index is None:
-            continue
-        side_sign = -1.0 if joint_name.startswith("left_") else 1.0
-        posed[joint_index] = posed[joint_index] @ rotation_y(side_sign * wrist_angle * weight)
-    for joint_name, adduction_angle in SMPLX_PINKY_ADDUCTION_JOINTS.items():
-        joint_index = asset.joint_lookup.get(joint_name)
-        if joint_index is None:
-            continue
-        posed[joint_index] = posed[joint_index] @ rotation_z(adduction_angle * weight)
+        posed[joint_index] = posed[joint_index] @ _scale_rotation(target_rotation, weight)
     return posed
 
 

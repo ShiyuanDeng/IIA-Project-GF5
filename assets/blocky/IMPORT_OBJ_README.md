@@ -95,6 +95,19 @@ python assets/blocky/import_obj_asset.py \
   --out assets/blocky/prop.asset.json
 ```
 
+Override colors when an MTL uses gray `Kd` values or missing texture images:
+
+```bash
+python assets/blocky/import_obj_asset.py \
+  --obj assets/imports/props/indoor_plant.obj \
+  --name "Indoor Plant" \
+  --joint pelvis \
+  --material-color IDP_leaves=42,128,58 \
+  --material-color IDP_root=112,72,42 \
+  --material-color IDP_Pot=148,84,54 \
+  --out assets/blocky/indoor_plant.asset.json
+```
+
 After importing, refresh the web editor. The generated asset appears as:
 
 - `Preview proxy: <name>`

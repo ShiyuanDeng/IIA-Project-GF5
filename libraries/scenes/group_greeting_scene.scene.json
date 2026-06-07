@@ -16,7 +16,7 @@
     "segments": []
   },
   "export": {
-    "fps": 10,
+    "fps": 5,
     "width": 960,
     "height": 540
   },
@@ -64,6 +64,44 @@
         }
       ],
       "root_segments": []
+    },
+    {
+      "id": "character_2",
+      "label": "Avatar 2",
+      "color": "#7d6aa8",
+      "proxy_asset": "Indoor Plant",
+      "avatar_asset": "Blocky: Indoor Plant",
+      "track": [],
+      "root_keys": [
+        {
+          "id": "k0",
+          "time": 0.0,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        },
+        {
+          "id": "k1",
+          "time": 3.5,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "facing_degrees": 0.0
+        }
+      ],
+      "root_segments": [
+        {
+          "from": "k0",
+          "to": "k1",
+          "mode": "linear",
+          "facing": "manual"
+        }
+      ]
     }
   ]
 }

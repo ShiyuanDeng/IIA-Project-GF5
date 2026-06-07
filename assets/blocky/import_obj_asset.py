@@ -118,12 +118,11 @@ def read_obj(path: Path, default_material: str) -> tuple[list[Vec3], list[MeshGr
             for index in range(1, len(indices) - 1):
                 group.faces.append((indices[0], indices[index], indices[index + 1]))
         elif keyword == "usemtl" and rest:
-            current_material = rest[0]
+            current_material = " ".join(rest)
         elif keyword in {"o", "g"} and rest:
             current_name = "_".join(rest)
         elif keyword == "mtllib" and rest:
-            for item in rest:
-                mtllibs.append((path.parent / item).resolve())
+            mtllibs.append((path.parent / " ".join(rest)).resolve())
         elif keyword in {"vt", "vn", "s"}:
             continue
         else:
@@ -181,12 +180,14 @@ def make_asset(
     rotate: Vec3,
     offset: Vec3,
     default_color: list[int],
+    material_overrides: dict[str, list[int]],
 ) -> dict[str, Any]:
     skeleton_raw = json.loads(skeleton_asset.read_text(encoding="utf-8"))
     vertices, groups, mtllibs = read_obj(obj_path, "__default__")
     material_colors = {"__default__": default_color}
     for mtllib in mtllibs:
         material_colors.update(parse_mtl_color(mtllib))
+    material_colors.update(material_overrides)
 
     parts: list[dict[str, Any]] = []
     for index, group in enumerate(groups):
@@ -235,6 +236,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rotate-degrees", default="0,0,0", help="Euler rotation in degrees as x,y,z, applied after scale.")
     parser.add_argument("--offset", default="0,0,0", help="Local offset as x,y,z meters, applied after scale/rotation.")
     parser.add_argument("--default-color", default="180,180,180", help="Fallback RGB color as r,g,b for faces without MTL material color.")
+    parser.add_argument(
+        "--material-color",
+        action="append",
+        default=[],
+        metavar="MATERIAL=R,G,B",
+        help="Override one material color. Can be repeated, for example --material-color IDP_leaves=40,125,55.",
+    )
     parser.add_argument("--description", default="", help="Optional asset description.")
     parser.add_argument("--skeleton-asset", type=Path, default=DEFAULT_SKELETON_ASSET, help="GF5 asset to copy display/skeleton from.")
     return parser.parse_args()
@@ -248,6 +256,12 @@ def main() -> None:
     rotate = parse_triplet(args.rotate_degrees, name="--rotate-degrees")
     offset = parse_triplet(args.offset, name="--offset")
     default_color = list(parse_triplet(args.default_color, name="--default-color", cast=int))
+    material_overrides: dict[str, list[int]] = {}
+    for item in args.material_color:
+        if "=" not in item:
+            raise ValueError(f"--material-color must be MATERIAL=R,G,B, got {item!r}")
+        material_name, color_text = item.split("=", 1)
+        material_overrides[material_name] = [clamp_byte(channel) for channel in parse_triplet(color_text, name=f"--material-color {material_name}", cast=int)]
     if not obj_path.exists():
         raise FileNotFoundError(obj_path)
     if not skeleton_asset.exists():
@@ -262,6 +276,7 @@ def main() -> None:
         rotate=rotate,
         offset=offset,
         default_color=[clamp_byte(channel) for channel in default_color],
+        material_overrides=material_overrides,
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(asset, indent=2) + "\n", encoding="utf-8")
