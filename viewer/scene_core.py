@@ -162,7 +162,12 @@ def valid_avatar_root(path: Path) -> bool:
 
 def valid_smplx_avatar_root(path: Path) -> bool:
     output_dir = path / "outputs"
-    return output_dir.is_dir() and (output_dir / "smplx_mesh.obj").exists()
+    animation_mesh = output_dir / "animation_lowres.obj"
+    clothed_smplx_weights = output_dir / "animation_lowres_smplx55_skinning_weights.npz"
+    return output_dir.is_dir() and (
+        (animation_mesh.exists() and clothed_smplx_weights.exists())
+        or (output_dir / "smplx_mesh.obj").exists()
+    )
 
 
 def infer_avatar_label(path: Path) -> str:

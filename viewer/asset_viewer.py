@@ -714,6 +714,10 @@ def packaged_skinning_weights_path(animation_mesh_path: Path) -> Path:
     return animation_mesh_path.with_name(f"{animation_mesh_path.stem}_skinning_weights.npz")
 
 
+def packaged_smplx_skinning_weights_path(animation_mesh_path: Path) -> Path:
+    return animation_mesh_path.with_name(f"{animation_mesh_path.stem}_smplx55_skinning_weights.npz")
+
+
 def package_metadata_string(data: np.lib.npyio.NpzFile, key: str) -> str:
     value = np.asarray(data[key])
     if value.shape == ():
@@ -844,7 +848,11 @@ def valid_up2you_character_root(path: Path) -> bool:
 
 def valid_smplx_character_root(path: Path) -> bool:
     output_dir = path / "outputs"
-    return output_dir.is_dir() and (output_dir / "smplx_mesh.obj").exists()
+    animation_mesh = output_dir / "animation_lowres.obj"
+    return output_dir.is_dir() and (
+        (animation_mesh.exists() and packaged_smplx_skinning_weights_path(animation_mesh).exists())
+        or (output_dir / "smplx_mesh.obj").exists()
+    )
 
 
 def iter_up2you_character_roots(search_dir: Path) -> list[Path]:
@@ -1305,11 +1313,17 @@ def load_smplx_character_asset(character_root: Path, smplx_model_root: Path) -> 
         raise FileNotFoundError(f"SMPL-X neutral model not found. Expected {expected}.")
 
     output_dir = character_root / "outputs"
-    packaged_smplx_weights_path = output_dir / "smplx_skinning_weights.npz"
-    smplx_tpose_mesh_path = output_dir / "smplx_mesh_tpose.obj"
-    smplx_mesh_path = smplx_tpose_mesh_path if smplx_tpose_mesh_path.exists() else output_dir / "smplx_mesh.obj"
+    animation_mesh_path = output_dir / "animation_lowres.obj"
+    clothed_smplx_weights_path = packaged_smplx_skinning_weights_path(animation_mesh_path)
+    if animation_mesh_path.exists() and clothed_smplx_weights_path.exists():
+        smplx_mesh_path = animation_mesh_path
+        packaged_smplx_weights_path = clothed_smplx_weights_path
+    else:
+        packaged_smplx_weights_path = output_dir / "smplx_skinning_weights.npz"
+        smplx_tpose_mesh_path = output_dir / "smplx_mesh_tpose.obj"
+        smplx_mesh_path = smplx_tpose_mesh_path if smplx_tpose_mesh_path.exists() else output_dir / "smplx_mesh.obj"
     if not smplx_mesh_path.exists():
-        raise FileNotFoundError(f"No smplx_mesh.obj found under {output_dir}")
+        raise FileNotFoundError(f"No SMPL-X-compatible mesh found under {output_dir}")
 
     rest_vertices_raw, mesh_faces, vertex_colors = parse_obj_mesh(smplx_mesh_path)
     model = smplx.SMPLX(str(smplx_model_root), gender="neutral", use_pca=False)
@@ -1444,44 +1458,62 @@ def repose_smplx_apose_to_tpose(
     return vertices_tpose.astype(np.float32), joints_tpose.astype(np.float32)
 
 
+# Finger flexion angles in radians at fist_weight=1.0. Y-axis in the viewer joint
+# frame corresponds to finger flexion. MCP (*1) joints near 90° give a tight fist.
 SMPLX_FINGER_POSE_JOINTS = {
-    "left_index1": 0.85,
-    "left_index2": 1.05,
-    "left_index3": 0.85,
-    "left_middle1": 0.92,
-    "left_middle2": 1.08,
-    "left_middle3": 0.88,
-    "left_ring1": 0.92,
-    "left_ring2": 1.08,
-    "left_ring3": 0.88,
-    "left_pinky1": 0.82,
-    "left_pinky2": 1.00,
-    "left_pinky3": 0.82,
-    "left_thumb1": 0.45,
-    "left_thumb2": 0.72,
-    "left_thumb3": 0.58,
-    "right_index1": 0.85,
-    "right_index2": 1.05,
-    "right_index3": 0.85,
-    "right_middle1": 0.92,
-    "right_middle2": 1.08,
-    "right_middle3": 0.88,
-    "right_ring1": 0.92,
-    "right_ring2": 1.08,
-    "right_ring3": 0.88,
-    "right_pinky1": 0.82,
-    "right_pinky2": 1.00,
-    "right_pinky3": 0.82,
-    "right_thumb1": 0.45,
-    "right_thumb2": 0.72,
-    "right_thumb3": 0.58,
+    "left_index1": 1.55,
+    "left_index2": 1.68,
+    "left_index3": 1.36,
+    "left_middle1": 1.57,
+    "left_middle2": 1.73,
+    "left_middle3": 1.41,
+    "left_ring1": 1.57,
+    "left_ring2": 1.73,
+    "left_ring3": 1.41,
+    "left_pinky1": 1.47,
+    "left_pinky2": 1.60,
+    "left_pinky3": 1.31,
+    "left_thumb1": 0.90,
+    "left_thumb2": 1.15,
+    "left_thumb3": 0.93,
+    "right_index1": 1.55,
+    "right_index2": 1.68,
+    "right_index3": 1.36,
+    "right_middle1": 1.57,
+    "right_middle2": 1.73,
+    "right_middle3": 1.41,
+    "right_ring1": 1.57,
+    "right_ring2": 1.73,
+    "right_ring3": 1.41,
+    "right_pinky1": 1.47,
+    "right_pinky2": 1.60,
+    "right_pinky3": 1.31,
+    "right_thumb1": 0.90,
+    "right_thumb2": 1.15,
+    "right_thumb3": 0.93,
 }
 
+# Z-axis thumb adduction — tucks thumb across index/middle fingers.
+# thumb3 included so the distal segment presses in fully.
 SMPLX_THUMB_INWARD_POSE_JOINTS = {
-    "left_thumb1": -0.70,
-    "left_thumb2": -0.35,
-    "right_thumb1": 0.70,
-    "right_thumb2": 0.35,
+    "left_thumb1": 0.88,
+    "left_thumb2": 0.44,
+    "left_thumb3": 0.24,
+    "right_thumb1": -0.88,
+    "right_thumb2": -0.44,
+    "right_thumb3": -0.24,
+}
+
+# Slight wrist flexion completes the fist silhouette.
+SMPLX_WRIST_POSE_JOINTS = {
+    "left_wrist": 0.22,
+    "right_wrist": 0.22,
+}
+
+# Pinky adduction — fans pinky inward toward ring finger.
+SMPLX_PINKY_ADDUCTION_JOINTS = {
+    "left_pinky1": -0.28,
+    "right_pinky1": 0.28,
 }
 
 
@@ -1501,13 +1533,23 @@ def apply_smplx_hand_pose(
         if joint_index is None:
             continue
         side_sign = -1.0 if joint_name.startswith("left_") else 1.0
-        target_rotation = rotation_y(side_sign * fist_angle * weight * 1.6)
-        posed[joint_index] = posed[joint_index] @ target_rotation
+        posed[joint_index] = posed[joint_index] @ rotation_y(side_sign * fist_angle * weight)
     for joint_name, inward_angle in SMPLX_THUMB_INWARD_POSE_JOINTS.items():
         joint_index = asset.joint_lookup.get(joint_name)
         if joint_index is None:
             continue
         posed[joint_index] = posed[joint_index] @ rotation_z(inward_angle * weight)
+    for joint_name, wrist_angle in SMPLX_WRIST_POSE_JOINTS.items():
+        joint_index = asset.joint_lookup.get(joint_name)
+        if joint_index is None:
+            continue
+        side_sign = -1.0 if joint_name.startswith("left_") else 1.0
+        posed[joint_index] = posed[joint_index] @ rotation_y(side_sign * wrist_angle * weight)
+    for joint_name, adduction_angle in SMPLX_PINKY_ADDUCTION_JOINTS.items():
+        joint_index = asset.joint_lookup.get(joint_name)
+        if joint_index is None:
+            continue
+        posed[joint_index] = posed[joint_index] @ rotation_z(adduction_angle * weight)
     return posed
 
 

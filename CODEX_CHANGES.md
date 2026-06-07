@@ -48,7 +48,8 @@ This file summarizes the local changes added on top of the original GF5 scene re
 
 - Added an optional 55-joint SMPL-X final-avatar path alongside the existing 24-joint UP2You package path.
   - Existing `UP2You: <name>` final avatars still use `animation_lowres.obj` and `animation_lowres_skinning_weights.npz`.
-  - New `SMPL-X: <name>` final avatars use the full SMPL-X mesh and 55-joint skinning.
+  - New `SMPL-X: <name>` final avatars use the clothed `animation_lowres.obj` mesh with 55-joint SMPL-X skinning when `animation_lowres_smplx55_skinning_weights.npz` is present.
+  - Older packages without the clothed 55-joint sidecar still fall back to the SMPL-X body mesh path.
   - Absolute-path `avatar_asset` values still resolve to the old UP2You path for backward compatibility.
 - Added `smplx_55` skeleton profile.
   - Includes SMPL-X body joints, jaw/eyes, and finger chains.
@@ -84,17 +85,24 @@ This file summarizes the local changes added on top of the original GF5 scene re
     - `outputs/animation_lowres_skinning_weights.npz`
     - `outputs/smplx_mesh.obj`
   - New SMPL-X outputs are also generated:
+    - `outputs/animation_lowres_smplx55_skinning_weights.npz`
     - `outputs/smplx_mesh_tpose.obj`
     - `outputs/smplx_skinning_weights.npz`
+- `animation_lowres_smplx55_skinning_weights.npz` stores:
+  - `format = gf5_smplx55_skinning_weights`
+  - `joint_names` with 55 SMPL-X joints
+  - `skinning_weights` with shape `(animation_lowres vertex count, 55)`
+  - `rest_joints` with shape `(55, 3)`
+  - `source_mesh = animation_lowres.obj`
 - `smplx_skinning_weights.npz` stores:
   - `format = gf5_smplx55_skinning_weights`
   - `joint_names` with 55 SMPL-X joints
   - `skinning_weights` with shape `(10475, 55)`
   - `rest_joints` with shape `(55, 3)`
   - `source_mesh = smplx_mesh_tpose.obj`
-- The UP2You packer now reposes the full SMPL-X mesh from UP2You A-pose into the GF5 rest-pose convention.
+- The UP2You packer now transfers SMPL-X 55-joint weights onto the clothed `animation_lowres.obj` mesh and also reposes the SMPL-X body mesh from UP2You A-pose into the GF5 rest-pose convention.
   - This keeps the elbow/wrist placement aligned with the SMPL-24/course-motion convention.
-  - GF5 prefers packaged `smplx_mesh_tpose.obj` and `smplx_skinning_weights.npz`.
+  - GF5 prefers packaged `animation_lowres.obj` and `animation_lowres_smplx55_skinning_weights.npz`.
   - GF5 still has a fallback runtime A-pose-to-T-pose path for older avatar packages that only have `smplx_mesh.obj`.
 - Regenerated local avatar packages for:
   - `libraries/avatars/Ivan`
