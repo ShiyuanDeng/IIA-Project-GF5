@@ -1,0 +1,9 @@
+{
+  "format": "gf5_hand_pose",
+  "version": 1,
+  "profile": "smplx_55",
+  "name": "natural",
+  "rotation_order": "xyz",
+  "units": "degrees",
+  "joint_rotations": {}
+}

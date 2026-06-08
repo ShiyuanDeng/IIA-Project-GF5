@@ -136,6 +136,7 @@ class ViewerState:
     suppress_motion_preview_time_callbacks: bool = False
     suppress_root_slider_callbacks: bool = False
     suppress_use_lbs_callbacks: bool = False
+    suppress_hand_pose_callbacks: bool = False
     transform_control_handle: Any | None = None
     root_transform_handle: Any | None = None
     suppress_transform_callback: bool = False
@@ -1464,6 +1465,22 @@ def repose_smplx_apose_to_tpose(
 
 _HANDPOSE_SEARCH_DIR = Path(__file__).resolve().parent.parent / "libraries" / "hand_poses" / "smplx"
 _hand_pose_cache: dict[str, dict[str, Mat3f]] = {}
+_live_fist_pose_degrees: dict[str, tuple[float, float, float]] | None = None
+
+SMPLX_BUILTIN_FIST_DEGREES: dict[str, tuple[float, float, float]] = {
+    "left_index1":  (0,  -89,   0), "left_index2":  (0,  -96,   0), "left_index3":  (0,  -78,  0),
+    "left_middle1": (0,  -90,   0), "left_middle2": (0,  -99,   0), "left_middle3": (0,  -81,  0),
+    "left_ring1":   (0,  -90,   0), "left_ring2":   (0,  -99,   0), "left_ring3":   (0,  -81,  0),
+    "left_pinky1":  (0,  -84, -16), "left_pinky2":  (0,  -92,   0), "left_pinky3":  (0,  -75,  0),
+    "left_thumb1":  (0,  -52,  50), "left_thumb2":  (0,  -66,  25), "left_thumb3":  (0,  -53,  14),
+    "left_wrist":   (0,  -13,   0),
+    "right_index1":  (0,  89,   0), "right_index2":  (0,  96,   0), "right_index3":  (0,  78,  0),
+    "right_middle1": (0,  90,   0), "right_middle2": (0,  99,   0), "right_middle3": (0,  81,  0),
+    "right_ring1":   (0,  90,   0), "right_ring2":   (0,  99,   0), "right_ring3":   (0,  81,  0),
+    "right_pinky1":  (0,  84,  16), "right_pinky2":  (0,  92,   0), "right_pinky3":  (0,  75,  0),
+    "right_thumb1":  (0,  52, -50), "right_thumb2":  (0,  66, -25), "right_thumb3":  (0,  53, -14),
+    "right_wrist":   (0,  13,   0),
+}
 
 
 def _euler_xyz_deg_to_matrix(x: float, y: float, z: float) -> Mat3f:
@@ -1495,21 +1512,62 @@ def _builtin_fist_preset() -> dict[str, Mat3f]:
     # [x_deg, y_deg, z_deg] per joint. Rotation applied as R_x @ R_y @ R_z.
     # Side sign is baked: left uses negative Y to curl, right uses positive.
     # Thumb gets both Y (curl) and Z (tuck across palm). Pinky gets Z adduction.
-    joints: dict[str, tuple[float, float, float]] = {
-        "left_index1":  (0,  -89,   0), "left_index2":  (0,  -96,   0), "left_index3":  (0,  -78,  0),
-        "left_middle1": (0,  -90,   0), "left_middle2": (0,  -99,   0), "left_middle3": (0,  -81,  0),
-        "left_ring1":   (0,  -90,   0), "left_ring2":   (0,  -99,   0), "left_ring3":   (0,  -81,  0),
-        "left_pinky1":  (0,  -84, -16), "left_pinky2":  (0,  -92,   0), "left_pinky3":  (0,  -75,  0),
-        "left_thumb1":  (0,  -52,  50), "left_thumb2":  (0,  -66,  25), "left_thumb3":  (0,  -53,  14),
-        "left_wrist":   (0,  -13,   0),
-        "right_index1":  (0,  89,   0), "right_index2":  (0,  96,   0), "right_index3":  (0,  78,  0),
-        "right_middle1": (0,  90,   0), "right_middle2": (0,  99,   0), "right_middle3": (0,  81,  0),
-        "right_ring1":   (0,  90,   0), "right_ring2":   (0,  99,   0), "right_ring3":   (0,  81,  0),
-        "right_pinky1":  (0,  84,  16), "right_pinky2":  (0,  92,   0), "right_pinky3":  (0,  75,  0),
-        "right_thumb1":  (0,  52, -50), "right_thumb2":  (0,  66, -25), "right_thumb3":  (0,  53, -14),
-        "right_wrist":   (0,  13,   0),
+    return {
+        name: _euler_xyz_deg_to_matrix(x, y, z)
+        for name, (x, y, z) in SMPLX_BUILTIN_FIST_DEGREES.items()
     }
+
+
+def _hand_pose_degrees_to_matrices(joints: dict[str, tuple[float, float, float]]) -> dict[str, Mat3f]:
     return {name: _euler_xyz_deg_to_matrix(x, y, z) for name, (x, y, z) in joints.items()}
+
+
+def _read_hand_pose_degrees(path: Path) -> dict[str, tuple[float, float, float]] | None:
+    if not path.exists():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if raw.get("format") != "gf5_hand_pose":
+            return None
+        joints: dict[str, tuple[float, float, float]] = {}
+        for joint_name, angles in raw.get("joint_rotations", {}).items():
+            if isinstance(angles, (list, tuple)) and len(angles) >= 3:
+                joints[joint_name] = (float(angles[0]), float(angles[1]), float(angles[2]))
+        return joints
+    except Exception:
+        return None
+
+
+def current_fist_pose_degrees() -> dict[str, tuple[float, float, float]]:
+    if _live_fist_pose_degrees is not None:
+        return dict(_live_fist_pose_degrees)
+    saved = _read_hand_pose_degrees(_HANDPOSE_SEARCH_DIR / "fist.handpose.json")
+    if saved is not None:
+        return saved
+    return dict(SMPLX_BUILTIN_FIST_DEGREES)
+
+
+def set_live_fist_pose_degrees(joints: dict[str, tuple[float, float, float]]) -> None:
+    global _live_fist_pose_degrees
+    _live_fist_pose_degrees = dict(joints)
+    _hand_pose_cache.pop("fist", None)
+
+
+def save_fist_pose_degrees(joints: dict[str, tuple[float, float, float]]) -> Path:
+    _HANDPOSE_SEARCH_DIR.mkdir(parents=True, exist_ok=True)
+    path = _HANDPOSE_SEARCH_DIR / "fist.handpose.json"
+    payload = {
+        "format": "gf5_hand_pose",
+        "version": 1,
+        "name": "fist",
+        "joint_rotations": {
+            name: [round(float(value), 6) for value in angles]
+            for name, angles in joints.items()
+        },
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    set_live_fist_pose_degrees(joints)
+    return path
 
 
 def load_hand_pose_preset(name: str) -> dict[str, Mat3f]:
@@ -1520,19 +1578,16 @@ def load_hand_pose_preset(name: str) -> dict[str, Mat3f]:
     """
     if name in _hand_pose_cache:
         return _hand_pose_cache[name]
+    if name == "fist" and _live_fist_pose_degrees is not None:
+        preset = _hand_pose_degrees_to_matrices(_live_fist_pose_degrees)
+        _hand_pose_cache[name] = preset
+        return preset
     path = _HANDPOSE_SEARCH_DIR / f"{name}.handpose.json"
-    if path.exists():
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            if raw.get("format") == "gf5_hand_pose":
-                preset: dict[str, Mat3f] = {}
-                for joint_name, angles in raw.get("joint_rotations", {}).items():
-                    if isinstance(angles, (list, tuple)) and len(angles) >= 3:
-                        preset[joint_name] = _euler_xyz_deg_to_matrix(float(angles[0]), float(angles[1]), float(angles[2]))
-                _hand_pose_cache[name] = preset
-                return preset
-        except Exception:
-            pass
+    saved_degrees = _read_hand_pose_degrees(path)
+    if saved_degrees is not None:
+        preset = _hand_pose_degrees_to_matrices(saved_degrees)
+        _hand_pose_cache[name] = preset
+        return preset
     preset = _builtin_fist_preset() if name == "fist" else {}
     _hand_pose_cache[name] = preset
     return preset
@@ -1966,6 +2021,12 @@ def main() -> None:
     else:
         character_dirs = []
     avatar_import_root = project_root / ".viewer_imports" / "avatars"
+    character_dirs.extend(
+        [
+            avatar_import_root,
+            project_root / "libraries" / "avatars",
+        ]
+    )
     asset_sources = discover_asset_sources(asset_dir, smpl_model_path, character_dirs)
     pose_library_dir = project_root / "libraries" / "poses"
     motion_library_dir = project_root / "libraries" / "motions" / "custom"
@@ -2104,6 +2165,52 @@ def main() -> None:
         )
         reset_root_button = server.gui.add_button("Reset Root Translation")
 
+    with server.gui.add_folder("SMPL-X Fist Tuning"):
+        hand_pose_status_text = server.gui.add_html(
+            format_status_html("Fist Tuning", "Load an SMPL-X avatar to tune fingers.")
+        )
+        preview_fist_checkbox = server.gui.add_checkbox("Preview Fist", initial_value=True, disabled=True)
+        preview_fist_weight_slider = server.gui.add_slider(
+            "Fist Weight",
+            min=0.0,
+            max=1.0,
+            step=0.05,
+            initial_value=1.0,
+            disabled=True,
+        )
+        hand_pose_joint_dropdown = server.gui.add_dropdown(
+            "Joint",
+            tuple(SMPLX_BUILTIN_FIST_DEGREES.keys()),
+            initial_value="left_thumb1",
+            disabled=True,
+        )
+        hand_pose_x_slider = server.gui.add_slider(
+            "X Deg",
+            min=-180.0,
+            max=180.0,
+            step=1.0,
+            initial_value=0.0,
+            disabled=True,
+        )
+        hand_pose_y_slider = server.gui.add_slider(
+            "Y Deg",
+            min=-180.0,
+            max=180.0,
+            step=1.0,
+            initial_value=0.0,
+            disabled=True,
+        )
+        hand_pose_z_slider = server.gui.add_slider(
+            "Z Deg",
+            min=-180.0,
+            max=180.0,
+            step=1.0,
+            initial_value=0.0,
+            disabled=True,
+        )
+        reset_fist_button = server.gui.add_button("Reset Live Fist To Builtin", disabled=True)
+        save_fist_button = server.gui.add_button("Save Fist JSON", disabled=True)
+
     with server.gui.add_folder("Working Sequence"):
         timeline_time_slider = server.gui.add_slider(
             "Time",
@@ -2205,6 +2312,22 @@ def main() -> None:
         root_y_slider.disabled = not enabled
         root_z_slider.disabled = not enabled
 
+    def selected_asset_is_smplx() -> bool:
+        return state.asset is not None and state.asset.profile_name == SMPLX_55_PROFILE.name
+
+    def hand_pose_controls_enabled() -> bool:
+        return selected_asset_is_smplx()
+
+    def set_hand_pose_sliders_enabled(enabled: bool) -> None:
+        preview_fist_checkbox.disabled = not enabled
+        preview_fist_weight_slider.disabled = not enabled
+        hand_pose_joint_dropdown.disabled = not enabled
+        hand_pose_x_slider.disabled = not enabled
+        hand_pose_y_slider.disabled = not enabled
+        hand_pose_z_slider.disabled = not enabled
+        reset_fist_button.disabled = not enabled
+        save_fist_button.disabled = not enabled
+
     def set_selected_joint_dropdown_value(value: str) -> None:
         state.suppress_joint_dropdown_callbacks = True
         selected_joint_dropdown.value = value
@@ -2219,6 +2342,31 @@ def main() -> None:
         root_y_slider.value = float(root_offset[1])
         root_z_slider.value = float(root_offset[2])
         state.suppress_root_slider_callbacks = False
+
+    def sync_hand_pose_sliders() -> None:
+        joint_name = str(hand_pose_joint_dropdown.value)
+        x_deg, y_deg, z_deg = current_fist_pose_degrees().get(joint_name, (0.0, 0.0, 0.0))
+        state.suppress_hand_pose_callbacks = True
+        hand_pose_x_slider.value = float(x_deg)
+        hand_pose_y_slider.value = float(y_deg)
+        hand_pose_z_slider.value = float(z_deg)
+        state.suppress_hand_pose_callbacks = False
+
+    def update_hand_pose_controls() -> None:
+        enabled = hand_pose_controls_enabled()
+        set_hand_pose_sliders_enabled(enabled)
+        sync_hand_pose_sliders()
+        if not enabled:
+            set_markdown_status(hand_pose_status_text, "Fist Tuning", "Load an SMPL-X avatar to tune fingers.")
+        else:
+            source = "saved JSON" if (_HANDPOSE_SEARCH_DIR / "fist.handpose.json").exists() else "builtin"
+            if _live_fist_pose_degrees is not None:
+                source = "live override"
+            set_markdown_status(hand_pose_status_text, "Fist Tuning", f"Editing {source} fist pose.")
+
+    def refresh_current_pose_display() -> None:
+        if state.current_local_rotations is not None and state.current_root_offset is not None:
+            show_pose(state.current_local_rotations, state.current_root_offset)
 
     def sorted_keyframes() -> list[dict[str, Any]]:
         return sorted(state.keyframes or [], key=lambda item: float(item["time_sec"]))
@@ -3049,9 +3197,19 @@ def main() -> None:
     def show_pose(local_rotations: list[Mat3f], root_offset: Vec3f) -> None:
         if state.asset is None:
             return
+        display_local_rotations = local_rotations
+        if (
+            preview_fist_checkbox.value
+            and state.asset.profile_name == SMPLX_55_PROFILE.name
+        ):
+            display_local_rotations = apply_smplx_hand_pose(
+                state.asset,
+                local_rotations,
+                float(preview_fist_weight_slider.value),
+            )
         world_rotations, fk_world_positions = forward_kinematics(
             state.asset.joints,
-            local_rotations,
+            display_local_rotations,
             root_offset,
             state.asset.topological_order,
         )
@@ -3146,6 +3304,22 @@ def main() -> None:
         )
         show_pose(state.manual_local_rotations, state.manual_root_offset)
 
+    def apply_hand_pose_slider_values() -> None:
+        if state.suppress_hand_pose_callbacks:
+            return
+        joint_name = str(hand_pose_joint_dropdown.value)
+        if joint_name not in SMPLX_BUILTIN_FIST_DEGREES:
+            return
+        joints = current_fist_pose_degrees()
+        joints[joint_name] = (
+            float(hand_pose_x_slider.value),
+            float(hand_pose_y_slider.value),
+            float(hand_pose_z_slider.value),
+        )
+        set_live_fist_pose_degrees(joints)
+        update_hand_pose_controls()
+        refresh_current_pose_display()
+
     def load_selected_asset() -> None:
         state.is_loading_asset = True
         try:
@@ -3161,6 +3335,7 @@ def main() -> None:
             render_asset(server, state, asset)
             update_joint_dropdown_options()
             update_skinning_controls()
+            update_hand_pose_controls()
             set_root_sliders_enabled(True)
             clear_joint_selection()
             refresh_saved_pose_options()
@@ -3248,6 +3423,10 @@ def main() -> None:
     def add_imported_avatar_source(file_name: str, character_root: Path) -> str:
         label = unique_asset_source_label(avatar_import_label_from_filename(file_name))
         asset_sources[label] = ("up2you", character_root)
+        if valid_smplx_character_root(character_root):
+            smplx_label = unique_asset_source_label(f"SMPL-X {label}")
+            asset_sources[smplx_label] = ("smplx", character_root)
+            label = smplx_label
         asset_dropdown.options = tuple(asset_sources.keys())
         asset_dropdown.value = label
         return label
@@ -3472,6 +3651,52 @@ def main() -> None:
     @root_z_slider.on_update
     def _(_: Any) -> None:
         apply_root_translation()
+
+    @preview_fist_checkbox.on_update
+    def _(_: Any) -> None:
+        if state.is_loading_asset:
+            return
+        refresh_current_pose_display()
+
+    @preview_fist_weight_slider.on_update
+    def _(_: Any) -> None:
+        if state.is_loading_asset:
+            return
+        refresh_current_pose_display()
+
+    @hand_pose_joint_dropdown.on_update
+    def _(_: Any) -> None:
+        if state.is_loading_asset or state.suppress_hand_pose_callbacks:
+            return
+        sync_hand_pose_sliders()
+
+    @hand_pose_x_slider.on_update
+    def _(_: Any) -> None:
+        apply_hand_pose_slider_values()
+
+    @hand_pose_y_slider.on_update
+    def _(_: Any) -> None:
+        apply_hand_pose_slider_values()
+
+    @hand_pose_z_slider.on_update
+    def _(_: Any) -> None:
+        apply_hand_pose_slider_values()
+
+    @reset_fist_button.on_click
+    def _(_: Any) -> None:
+        set_live_fist_pose_degrees(dict(SMPLX_BUILTIN_FIST_DEGREES))
+        sync_hand_pose_sliders()
+        update_hand_pose_controls()
+        refresh_current_pose_display()
+
+    @save_fist_button.on_click
+    def _(_: Any) -> None:
+        try:
+            path = save_fist_pose_degrees(current_fist_pose_degrees())
+            set_markdown_status(hand_pose_status_text, "Fist Tuning", f"Saved {path.relative_to(project_root)}")
+        except Exception as exc:
+            set_markdown_status(hand_pose_status_text, "Fist Tuning", f"Could not save: {exc}")
+            traceback.print_exc()
 
     @reset_root_button.on_click
     def _(_: Any) -> None:

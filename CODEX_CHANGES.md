@@ -64,14 +64,30 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - `natural` to `fist` and `fist` to `natural` interpolate through the same blend windows as body motion clips.
   - Blocky/proxy preview does not show SMPL-X finger pose because preview proxies are still SMPL-24/rigid assets.
   - Final SMPL-X avatar export applies the hand pose before FK and mesh skinning.
-- Added a simple SMPL-X fist preset.
-  - Finger curls are mirrored between left and right hands.
-  - Thumbs include an inward tuck component.
-  - The preset is currently hard-coded in `viewer/asset_viewer.py`; future tuning would benefit from Asset Viewer sliders or a JSON hand-pose preset file.
+- Added file-based hand-pose preset system.
+  - Presets live in `libraries/hand_poses/smplx/<name>.handpose.json`.
+  - Format `gf5_hand_pose`: per-joint XYZ Euler angles in degrees, applied as R_x @ R_y @ R_z.
+  - Each joint gets full 3-DOF; missing joints remain at identity.
+  - Baseline `fist.handpose.json` and `natural.handpose.json` files are present under `libraries/hand_poses/smplx/`.
+  - At render time `load_hand_pose_preset(name)` reads the file when present and caches the rotation matrices.
+  - Interpolation from natural to fist uses axis-angle scaling (equivalent to slerp for each joint).
+  - Built-in fallback matrices in `viewer/asset_viewer.py` ensure export never breaks if the files are missing.
+  - Asset Viewer has an `SMPL-X Fist Tuning` panel for live XYZ-degree edits on each configured wrist/finger joint.
+  - The tuning panel can save the active fist preset to `libraries/hand_poses/smplx/fist.handpose.json`; when present, that JSON overrides the builtin fallback.
+  - The current saved `fist.handpose.json` mirrors the edited left-hand values onto the right hand.
+- Added generated hand-only SMPL-X avatar packages for fast fist tuning.
+  - `libraries/avatars/Ivan_Hands`
+  - `libraries/avatars/SalaryMan_1_Hands`
+  - `libraries/avatars/SalaryMan_2_Hands`
+  - `libraries/avatars/Sean_Hands`
+  - `libraries/avatars/Zohaib_Hands`
+  - Each contains only `outputs/animation_lowres.obj` plus matching `outputs/animation_lowres_smplx55_skinning_weights.npz`.
+  - These packages keep the same 55-joint skeleton/weights format, but the mesh contains only wrist/finger-weighted faces.
 - Updated final-avatar discovery to expose both modes when an avatar package supports them:
   - `UP2You: Zohaib`
   - `SMPL-X: Zohaib`
   - Similar labels are shown for Ivan, Sean, SalaryMan_1, and SalaryMan_2.
+- Asset Viewer now scans `.viewer_imports/avatars` and `libraries/avatars` by default, so packaged UP2You and SMPL-X avatars appear in its asset dropdown without passing `--character-dir`.
 - The browser Scene Editor does not interpret avatar kinds itself.
   - It stores `avatar_asset` as the selected label string, for example `SMPL-X: Zohaib`.
   - The Python scene/render layer resolves that label to `kind: "smplx"` or `kind: "up2you"` during export.
