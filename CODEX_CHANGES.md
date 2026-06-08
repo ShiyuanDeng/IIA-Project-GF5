@@ -32,6 +32,9 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - `Import Set` accepts multiple PNG/JPG/JPEG/WEBP files in one selection.
   - Files named `sky`, `floor`, `front`, `back`, `left`, and `right` are mapped to the matching background slots.
   - Background upload accepts up to 64 MB per batch and 10 MB per individual image.
+- Added a `Rotate imports 180` background-import toggle.
+  - When enabled, individual background uploads and `Import Set` rotate image pixels before upload.
+  - The corrected image is stored in `viewer/scene_editor_web/backgrounds/`, so preview and export use the same orientation.
 
 ## Scene Data
 
@@ -62,7 +65,8 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - hold/cut
 - Draft render selects each character's configured `proxy_asset` where available.
 - Draft and final avatar renders composite background images.
-  - `sky_image` is fitted behind the full frame.
+  - `sky_image` is rendered as world-space overhead sky geometry rather than a camera-facing screen plate.
+  - The sky uses a ceiling plane plus upper side bands to bridge down to the tops of the wall planes.
   - Floor and wall images are projected onto scene-aligned planes around the animated characters.
   - Background planes are near-plane clamped so they continue rendering when only part of the plane is visible.
 - The web shot preview now renders background floor/wall images on a canvas using a perspective-warped subdivided mesh.
