@@ -1,238 +1,95 @@
 {
   "format": "gf5_motion_scene",
   "version": 3,
-  "duration": 12.0,
+  "duration": 3.5,
   "background": {
     "color": "#f4f1ea",
-    "image_path": "",
+    "sky_image": "/backgrounds/9010cb0d_sky1.png",
+    "floor_image": "/backgrounds/ffc0e0cb_floor1.png",
+    "wall_front_image": "/backgrounds/540834cc_front.png",
+    "wall_back_image": "/backgrounds/824d0887_back.png",
+    "wall_left_image": "/backgrounds/408317a1_left.png",
+    "wall_right_image": "/backgrounds/4466822d_right.png",
     "show_grid": true,
     "show_floor": true
   },
   "camera": {
     "preset": "keyframed",
-    "target": "observer",
-    "height": 2.65,
+    "target": "__origin__",
+    "height": 1.45,
     "keyframes": [
       {
-        "id": "c0",
-        "time": 2.7830999999999984,
+        "id": "c1",
+        "time": 0.0,
         "position": [
-          2.083950466579861,
-          -0.23765411376953124,
-          1.0
+          0.03989359537760417,
+          1.1038625717163086,
+          2.4215
         ],
         "look_at": [
-          -0.16296318901909723,
-          0.10802493625217013,
-          1.0
+          -2.0,
+          -0.45,
+          1.044
+        ],
+        "fov_degrees": 45.0
+      },
+      {
+        "id": "c0",
+        "time": 2.449900000000025,
+        "position": [
+          -0.7103669908311632,
+          -2.0109788682725696,
+          0.5
+        ],
+        "look_at": [
+          -2.0,
+          -0.45,
+          2.0
         ],
         "fov_degrees": 45.0
       }
     ],
-    "segments": []
+    "segments": [
+      {
+        "from": "c1",
+        "to": "c0",
+        "mode": "linear"
+      }
+    ]
   },
   "export": {
-    "fps": 2,
+    "fps": 3,
     "width": 960,
     "height": 540
   },
   "characters": [
     {
-      "id": "observer",
-      "label": "Observer",
-      "color": "#d6a72f",
-      "proxy_asset": "SMPL-24 Proxy",
-      "avatar_asset": "SMPL-X: Sean",
-      "track": [
-        {
-          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward.",
-          "start": 0.0,
-          "duration": 2.966667,
-          "trim_start": 0.0,
-          "trim_end": null,
-          "root_mode": "path",
-          "hand_pose": "fist",
-          "blend_in": 0.45,
-          "blend_out": 0.45
-        },
-        {
-          "clip": "Custom: HY-Motion: A person steps forward with the left foot, rotates the torso to the right, then throws a fast straight right punch extending the arm fully at shoulder height, snapping the hips forward, then pulls the arm back into guard position.",
-          "start": 3.0,
-          "duration": 1.466667,
-          "trim_start": 0.0,
-          "trim_end": null,
-          "root_mode": "path",
-          "hand_pose": "fist",
-          "blend_in": 0.45,
-          "blend_out": 0.45
-        },
-        {
-          "clip": "Custom: HY-Motion: A person pulls both hands back to their hips with palms facing outward, pauses with arms trembling, then lunges forward with the right foot and thrusts both palms explosively forward at chest height, arms fully extended, body leaning into the push.",
-          "start": 4.5,
-          "duration": 2.466667,
-          "trim_start": 0.0,
-          "trim_end": null,
-          "root_mode": "path",
-          "hand_pose": "natural",
-          "blend_in": 0.45,
-          "blend_out": 0.45
-        },
-        {
-          "clip": "Custom: HY-Motion: sprint",
-          "start": 7.0,
-          "duration": 3.366667,
-          "trim_start": 0.0,
-          "trim_end": null,
-          "root_mode": "path",
-          "hand_pose": "natural",
-          "blend_in": 0.45,
-          "blend_out": 0.45
-        }
-      ],
-      "root_keys": [
-        {
-          "id": "k0",
-          "time": 0.0,
-          "position": [
-            0.0,
-            1.5,
-            0.0
-          ],
-          "facing_degrees": 180.0
-        },
-        {
-          "id": "k1",
-          "time": 2.9,
-          "position": [
-            0.0,
-            0.55,
-            0.0
-          ],
-          "facing_degrees": 180.0
-        },
-        {
-          "id": "k2",
-          "time": 7.0,
-          "position": [
-            0.0,
-            0.55,
-            0.0
-          ],
-          "facing_degrees": 180.0
-        },
-        {
-          "id": "k3",
-          "time": 8.3,
-          "position": [
-            0.0,
-            -6.0,
-            0.0
-          ],
-          "facing_degrees": 180.0
-        },
-        {
-          "id": "k4",
-          "time": 9.1,
-          "position": [
-            0.0,
-            -6.0,
-            0.0
-          ],
-          "facing_degrees": 60.0
-        },
-        {
-          "id": "k5",
-          "time": 10.177777777777777,
-          "position": [
-            0.0,
-            -2.0,
-            0.0
-          ],
-          "facing_degrees": 0.0
-        }
-      ],
-      "root_segments": [
-        {
-          "from": "k0",
-          "to": "k1",
-          "mode": "linear",
-          "facing": "manual"
-        },
-        {
-          "from": "k1",
-          "to": "k2",
-          "mode": "linear",
-          "facing": "manual"
-        },
-        {
-          "from": "k2",
-          "to": "k3",
-          "mode": "curve",
-          "facing": "manual"
-        },
-        {
-          "from": "k3",
-          "to": "k4",
-          "mode": "linear",
-          "facing": "manual"
-        },
-        {
-          "from": "k4",
-          "to": "k5",
-          "mode": "linear",
-          "facing": "manual"
-        }
-      ]
-    },
-    {
-      "id": "character_2",
-      "label": "Ivan",
+      "id": "host",
+      "label": "Host",
       "color": "#2f7f7b",
       "proxy_asset": "SMPL-24 Proxy",
-      "avatar_asset": "SMPL-X: SalaryMan 2",
+      "avatar_asset": "SMPL-X: Ivan",
       "track": [
         {
-          "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward. (2)",
+          "clip": "Preset: Start walking",
           "start": 0.0,
-          "duration": 3.2,
+          "duration": 1.2,
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
           "hand_pose": "fist",
-          "blend_in": 0.45,
-          "blend_out": 0.45
+          "blend_in": 0.36,
+          "blend_out": 0.36
         },
         {
-          "clip": "Custom: HY-Motion: A person is struck in the face, head snapping back, stumbles one step backward, raises both forearms to protect the face, then plants feet wide to regain balance.",
-          "start": 3.4,
-          "duration": 1.466667,
+          "clip": "Preset: Right-hand wave",
+          "start": 1.2,
+          "duration": 2.2,
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
           "hand_pose": "natural",
           "blend_in": 0.45,
-          "blend_out": 0.45
-        },
-        {
-          "clip": "Custom: HY-Motion: A person is suddenly thrown backward, both arms flung wide, torso arching back, stumbles two large steps, then loses balance and falls hard onto their back with arms spread on the ground.",
-          "start": 6.1,
-          "duration": 1.966667,
-          "trim_start": 0.0,
-          "trim_end": null,
-          "root_mode": "path",
-          "hand_pose": "natural",
-          "blend_in": 0.45,
-          "blend_out": 0.0
-        },
-        {
-          "clip": "Preset: Idle stand",
-          "start": 8.1,
-          "duration": 3.066667,
-          "trim_start": 0.0,
-          "trim_end": null,
-          "root_mode": "path",
-          "hand_pose": "natural",
-          "blend_in": 0.0,
           "blend_out": 0.45
         }
       ],
@@ -241,95 +98,14 @@
           "id": "k0",
           "time": 0.0,
           "position": [
-            0.0,
-            -1.5,
+            -2.0,
+            -0.45,
             0.0
           ],
-          "facing_degrees": 0.0
-        },
-        {
-          "id": "k1",
-          "time": 3.4,
-          "position": [
-            0.0,
-            -0.35,
-            0.0
-          ],
-          "facing_degrees": 0.0
-        },
-        {
-          "id": "k3",
-          "time": 6.1,
-          "position": [
-            0.0,
-            -0.35,
-            0.0
-          ],
-          "facing_degrees": 28.6363636363636
-        },
-        {
-          "id": "k2",
-          "time": 6.333333333333333,
-          "position": [
-            0.0,
-            -0.35,
-            0.0
-          ],
-          "facing_degrees": 80.0
-        },
-        {
-          "id": "k4",
-          "time": 7.6,
-          "position": [
-            0.0,
-            -10.0,
-            0.0
-          ],
-          "facing_degrees": 80.0
-        },
-        {
-          "id": "k5",
-          "time": 8.1,
-          "position": [
-            0.0,
-            5.0,
-            0.0
-          ],
-          "facing_degrees": 180.0
+          "facing_degrees": 76.0
         }
       ],
-      "root_segments": [
-        {
-          "from": "k0",
-          "to": "k1",
-          "mode": "linear",
-          "facing": "manual"
-        },
-        {
-          "from": "k1",
-          "to": "k3",
-          "mode": "linear",
-          "facing": "manual"
-        },
-        {
-          "from": "k3",
-          "to": "k2",
-          "mode": "linear",
-          "facing": "manual"
-        },
-        {
-          "from": "k2",
-          "to": "k4",
-          "mode": "curve",
-          "facing": "manual"
-        },
-        {
-          "from": "k4",
-          "to": "k5",
-          "mode": "hold",
-          "facing": "manual"
-        }
-      ]
+      "root_segments": []
     }
   ]
 }

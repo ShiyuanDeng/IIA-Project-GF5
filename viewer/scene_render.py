@@ -35,6 +35,8 @@ AVATAR_FINAL_OVERLAY_SATURATION = 1.0
 AVATAR_FINAL_OVERLAY_CONTRAST = 1.08
 AVATAR_FINAL_OVERLAY_BRIGHTNESS = 0.96
 AVATAR_CONTACT_SHADOW_ALPHA = 48
+STATIC_ROOT = Path(__file__).resolve().parent / "scene_editor_web"
+BACKGROUND_NEAR_PLANE = 0.03
 
 PALETTE = (
     "#2f7f7b",
@@ -90,6 +92,18 @@ def normalize(a: Vec3) -> Vec3:
     return (a[0] / length, a[1] / length, a[2] / length)
 
 
+def camera_basis(camera_position: Vec3, look_at: Vec3) -> tuple[Vec3, Vec3, Vec3]:
+    forward = normalize(vec_sub(look_at, camera_position))
+    world_up = (0.0, 0.0, 1.0)
+    right = cross(forward, world_up)
+    if norm(right) < 1e-5:
+        right = (1.0, 0.0, 0.0)
+    else:
+        right = normalize(right)
+    up = normalize(cross(right, forward))
+    return forward, right, up
+
+
 def parse_hex_color(value: str, fallback: tuple[int, int, int]) -> tuple[int, int, int]:
     text = str(value).strip()
     if len(text) == 7 and text.startswith("#"):
@@ -98,6 +112,229 @@ def parse_hex_color(value: str, fallback: tuple[int, int, int]) -> tuple[int, in
         except ValueError:
             return fallback
     return fallback
+
+
+def background_image_path(url: Any) -> Path | None:
+    text = str(url or "").strip()
+    if not text.startswith("/backgrounds/") or "\\" in text or ".." in text:
+        return None
+    path = (STATIC_ROOT / text.lstrip("/")).resolve()
+    backgrounds_dir = (STATIC_ROOT / "backgrounds").resolve()
+    if backgrounds_dir not in path.parents:
+        return None
+    if path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+        return None
+    return path if path.exists() and path.is_file() else None
+
+
+def load_background_plate(background: dict[str, Any], width: int, height: int) -> Any:
+    color = parse_hex_color(str(background.get("color", "#f4f1ea")), (244, 241, 234))
+    return Image.new("RGB", (width, height), color)
+
+
+def solve_linear_system(matrix: list[list[float]], vector: list[float]) -> list[float] | None:
+    size = len(vector)
+    rows = [matrix[index][:] + [vector[index]] for index in range(size)]
+    for pivot in range(size):
+        best = max(range(pivot, size), key=lambda row: abs(rows[row][pivot]))
+        if abs(rows[best][pivot]) < 1e-9:
+            return None
+        rows[pivot], rows[best] = rows[best], rows[pivot]
+        divisor = rows[pivot][pivot]
+        rows[pivot] = [value / divisor for value in rows[pivot]]
+        for row in range(size):
+            if row == pivot:
+                continue
+            factor = rows[row][pivot]
+            if abs(factor) < 1e-12:
+                continue
+            rows[row] = [rows[row][col] - factor * rows[pivot][col] for col in range(size + 1)]
+    return [rows[row][-1] for row in range(size)]
+
+
+def perspective_coefficients(destination: list[tuple[float, float]], source: list[tuple[float, float]]) -> list[float] | None:
+    matrix: list[list[float]] = []
+    vector: list[float] = []
+    for (x, y), (u, v) in zip(destination, source):
+        matrix.append([x, y, 1.0, 0.0, 0.0, 0.0, -u * x, -u * y])
+        vector.append(u)
+        matrix.append([0.0, 0.0, 0.0, x, y, 1.0, -v * x, -v * y])
+        vector.append(v)
+    return solve_linear_system(matrix, vector)
+
+
+def composite_floor_image(
+    image: Any,
+    background: dict[str, Any],
+    scene: dict[str, Any],
+    scene_time: float,
+    width: int,
+    height: int,
+) -> None:
+    if not bool(background.get("show_floor", True)):
+        return
+    camera_position, look_at, fov_degrees = camera_state(scene, scene_time)
+    top_down = str(scene.get("camera", {}).get("preset", "")) == "top_down"
+    center, radius = scene_center_and_radius(scene)
+    extent = max(1.0, math.ceil(radius + 1.0))
+    wall_height = max(2.8, extent * 0.9)
+    sky_extent = extent * 2.0
+    sky_height = wall_height * 2.0
+    sky_image = background.get("sky_image")
+    if sky_image:
+        sky_planes = [
+            [
+                (center[0] - sky_extent, center[1] - sky_extent, sky_height),
+                (center[0] + sky_extent, center[1] - sky_extent, sky_height),
+                (center[0] + sky_extent, center[1] + sky_extent, sky_height),
+                (center[0] - sky_extent, center[1] + sky_extent, sky_height),
+            ],
+            [
+                (center[0] - extent, center[1] - extent, wall_height),
+                (center[0] + extent, center[1] - extent, wall_height),
+                (center[0] + sky_extent, center[1] - sky_extent, sky_height),
+                (center[0] - sky_extent, center[1] - sky_extent, sky_height),
+            ],
+            [
+                (center[0] + extent, center[1] + extent, wall_height),
+                (center[0] - extent, center[1] + extent, wall_height),
+                (center[0] - sky_extent, center[1] + sky_extent, sky_height),
+                (center[0] + sky_extent, center[1] + sky_extent, sky_height),
+            ],
+            [
+                (center[0] - extent, center[1] + extent, wall_height),
+                (center[0] - extent, center[1] - extent, wall_height),
+                (center[0] - sky_extent, center[1] - sky_extent, sky_height),
+                (center[0] - sky_extent, center[1] + sky_extent, sky_height),
+            ],
+            [
+                (center[0] + extent, center[1] - extent, wall_height),
+                (center[0] + extent, center[1] + extent, wall_height),
+                (center[0] + sky_extent, center[1] + sky_extent, sky_height),
+                (center[0] + sky_extent, center[1] - sky_extent, sky_height),
+            ],
+        ]
+        for corners in sky_planes:
+            composite_image_plane(image, sky_image, corners, camera_position, look_at, width, height, top_down, fov_degrees)
+    planes = [
+        (
+            background.get("wall_front_image"),
+            [
+                (center[0] - extent, center[1] - extent, 0.0),
+                (center[0] + extent, center[1] - extent, 0.0),
+                (center[0] + extent, center[1] - extent, wall_height),
+                (center[0] - extent, center[1] - extent, wall_height),
+            ],
+        ),
+        (
+            background.get("wall_back_image"),
+            [
+                (center[0] + extent, center[1] + extent, 0.0),
+                (center[0] - extent, center[1] + extent, 0.0),
+                (center[0] - extent, center[1] + extent, wall_height),
+                (center[0] + extent, center[1] + extent, wall_height),
+            ],
+        ),
+        (
+            background.get("wall_left_image"),
+            [
+                (center[0] - extent, center[1] + extent, 0.0),
+                (center[0] - extent, center[1] - extent, 0.0),
+                (center[0] - extent, center[1] - extent, wall_height),
+                (center[0] - extent, center[1] + extent, wall_height),
+            ],
+        ),
+        (
+            background.get("wall_right_image"),
+            [
+                (center[0] + extent, center[1] - extent, 0.0),
+                (center[0] + extent, center[1] + extent, 0.0),
+                (center[0] + extent, center[1] + extent, wall_height),
+                (center[0] + extent, center[1] - extent, wall_height),
+            ],
+        ),
+    ]
+    for url, corners in planes:
+        composite_image_plane(image, url, corners, camera_position, look_at, width, height, top_down, fov_degrees)
+    composite_image_plane(
+        image,
+        background.get("floor_image"),
+        [
+            (center[0] - extent, center[1] - extent, 0.0),
+            (center[0] + extent, center[1] - extent, 0.0),
+            (center[0] + extent, center[1] + extent, 0.0),
+            (center[0] - extent, center[1] + extent, 0.0),
+        ],
+        camera_position,
+        look_at,
+        width,
+        height,
+        top_down,
+        fov_degrees,
+    )
+
+
+def composite_image_plane(
+    image: Any,
+    url: Any,
+    world_corners: list[Vec3],
+    camera_position: Vec3,
+    look_at: Vec3,
+    width: int,
+    height: int,
+    top_down: bool,
+    fov_degrees: float,
+) -> None:
+    source_path = background_image_path(url)
+    if source_path is None:
+        return
+    projected = project_background_plane(world_corners, camera_position, look_at, width, height, top_down, fov_degrees)
+    if projected is None:
+        return
+    destination = [(float(point[0]), float(point[1])) for point in projected]
+    try:
+        with Image.open(source_path) as source:
+            texture = source.convert("RGBA")
+    except Exception:
+        return
+    source_points = [(0.0, 0.0), (float(texture.width), 0.0), (float(texture.width), float(texture.height)), (0.0, float(texture.height))]
+    coeffs = perspective_coefficients(destination, source_points)
+    if coeffs is None:
+        return
+    resampling = Image.Resampling.BICUBIC
+    warped = texture.transform((width, height), Image.Transform.PERSPECTIVE, coeffs, resampling)
+    mask_source = Image.new("L", texture.size, 255)
+    mask = mask_source.transform((width, height), Image.Transform.PERSPECTIVE, coeffs, resampling)
+    image.alpha_composite(warped, (0, 0)) if image.mode == "RGBA" else image.paste(warped.convert("RGB"), (0, 0), mask)
+
+
+def project_background_plane(
+    world_corners: list[Vec3],
+    camera_position: Vec3,
+    look_at: Vec3,
+    width: int,
+    height: int,
+    top_down: bool,
+    fov_degrees: float,
+) -> list[tuple[float, float, float]] | None:
+    forward, right, up = camera_basis(camera_position, look_at)
+    rel_points = [vec_sub(point, camera_position) for point in world_corners]
+    depths = [dot(point, forward) for point in rel_points]
+    if max(depths, default=float("-inf")) <= BACKGROUND_NEAR_PLANE:
+        return None
+    fov = math.radians(clamp(float(fov_degrees if fov_degrees is not None else (38.0 if top_down else 45.0)), 10.0, 120.0))
+    focal = 0.5 * height / math.tan(fov * 0.5)
+    projected: list[tuple[float, float, float]] = []
+    for rel, depth in zip(rel_points, depths):
+        safe_depth = max(depth, BACKGROUND_NEAR_PLANE)
+        projected.append(
+            (
+                width * 0.5 + dot(rel, right) * focal / safe_depth,
+                height * 0.54 - dot(rel, up) * focal / safe_depth,
+                focal / safe_depth,
+            )
+        )
+    return projected
 
 
 def character_color(scene: dict[str, Any], character_id: str, index: int) -> tuple[int, int, int]:
@@ -664,22 +901,24 @@ def render_scene_frame(
     if Image is None or ImageDraw is None:
         raise RuntimeError("Pillow is required for video export. Install pillow in the GF5 environment.") from PIL_IMPORT_ERROR
     background = scene.get("background", {})
-    image = Image.new("RGB", (width, height), parse_hex_color(str(background.get("color", "#f4f1ea")), (244, 241, 234)))
+    image = load_background_plate(background, width, height)
+    composite_floor_image(image, background, scene, scene_time, width, height)
     draw = ImageDraw.Draw(image, "RGBA")
     camera_position, look_at, fov_degrees = camera_state(scene, scene_time)
     top_down = str(scene.get("camera", {}).get("preset", "")) == "top_down"
     center, radius = scene_center_and_radius(scene)
 
-    grid_extent = math.ceil(radius + 1.0)
-    for index in range(-grid_extent, grid_extent + 1):
-        for a, b in (
-            ((index, -grid_extent, 0.0), (index, grid_extent, 0.0)),
-            ((-grid_extent, index, 0.0), (grid_extent, index, 0.0)),
-        ):
-            pa = project_point((a[0] + center[0], a[1] + center[1], a[2]), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
-            pb = project_point((b[0] + center[0], b[1] + center[1], b[2]), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
-            if pa and pb:
-                draw.line((pa[0], pa[1], pb[0], pb[1]), fill=(36, 43, 45, 38), width=1)
+    if bool(background.get("show_grid", True)) and bool(background.get("show_floor", True)):
+        grid_extent = math.ceil(radius + 1.0)
+        for index in range(-grid_extent, grid_extent + 1):
+            for a, b in (
+                ((index, -grid_extent, 0.0), (index, grid_extent, 0.0)),
+                ((-grid_extent, index, 0.0), (grid_extent, index, 0.0)),
+            ):
+                pa = project_point((a[0] + center[0], a[1] + center[1], a[2]), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
+                pb = project_point((b[0] + center[0], b[1] + center[1], b[2]), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
+                if pa and pb:
+                    draw.line((pa[0], pa[1], pb[0], pb[1]), fill=(36, 43, 45, 38), width=1)
 
     if proxy_context is not None:
         draw_proxy_asset_characters(
@@ -1220,7 +1459,8 @@ def export_avatar_scene_video(
         for frame_index in range(frame_count):
             scene_time = duration * frame_index / max(1, frame_count - 1)
             background = scene.get("background", {})
-            image = Image.new("RGB", (width, height), parse_hex_color(str(background.get("color", "#f4f1ea")), (244, 241, 234)))
+            image = load_background_plate(background, width, height)
+            composite_floor_image(image, background, scene, scene_time, width, height)
             draw = ImageDraw.Draw(image, "RGBA")
             draw_avatar_floor(draw, scene, scene_time, width, height)
 
@@ -1277,6 +1517,9 @@ def export_avatar_scene_video(
 
 
 def draw_avatar_floor(draw: Any, scene: dict[str, Any], scene_time: float, width: int, height: int) -> None:
+    background = scene.get("background", {})
+    if not bool(background.get("show_grid", True)) or not bool(background.get("show_floor", True)):
+        return
     camera_position, look_at, fov_degrees = camera_state(scene, scene_time)
     top_down = str(scene.get("camera", {}).get("preset", "")) == "top_down"
     center, radius = scene_center_and_radius(scene)

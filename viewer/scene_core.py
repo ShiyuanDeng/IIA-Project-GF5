@@ -512,7 +512,12 @@ def default_scene(motions: list[dict[str, Any]], proxy_assets: list[str]) -> dic
         "duration": scene_duration,
         "background": {
             "color": "#f4f1ea",
-            "image_path": "",
+            "sky_image": "",
+            "floor_image": "",
+            "wall_front_image": "",
+            "wall_back_image": "",
+            "wall_left_image": "",
+            "wall_right_image": "",
             "show_grid": True,
             "show_floor": True,
         },
@@ -652,12 +657,29 @@ def normalize_background(raw: Any) -> dict[str, Any]:
     color = str(raw.get("color", "#f4f1ea"))
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
         color = "#f4f1ea"
+    sky_image = normalize_background_image_url(raw.get("sky_image") or raw.get("image_path", ""))
     return {
         "color": color,
-        "image_path": str(raw.get("image_path", "")),
+        "sky_image": sky_image,
+        "floor_image": normalize_background_image_url(raw.get("floor_image", "")),
+        "wall_front_image": normalize_background_image_url(raw.get("wall_front_image", "")),
+        "wall_back_image": normalize_background_image_url(raw.get("wall_back_image", "")),
+        "wall_left_image": normalize_background_image_url(raw.get("wall_left_image", "")),
+        "wall_right_image": normalize_background_image_url(raw.get("wall_right_image", "")),
         "show_grid": bool(raw.get("show_grid", True)),
         "show_floor": bool(raw.get("show_floor", True)),
     }
+
+
+def normalize_background_image_url(raw: Any) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    if "\\" in text or ".." in text:
+        return ""
+    if not re.fullmatch(r"/backgrounds/[A-Za-z0-9_. -]+\.(?:png|jpg|jpeg|webp)", text, flags=re.IGNORECASE):
+        return ""
+    return text
 
 
 def normalize_camera(raw: Any) -> dict[str, Any]:

@@ -24,6 +24,14 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - Character inspector now has `Preview proxy`.
   - The web stage preview uses the selected proxy asset per character.
   - Scene save/load preserves each character's `proxy_asset`.
+- Added scene background image controls to the Preview & Export panel.
+  - Background fields include `sky_image`, `floor_image`, `wall_front_image`, `wall_back_image`, `wall_left_image`, and `wall_right_image`.
+  - Existing legacy `background.image_path` values are migrated to `sky_image`.
+  - Individual background slots can be uploaded or cleared from the web editor.
+- Added one-shot background set import.
+  - `Import Set` accepts multiple PNG/JPG/JPEG/WEBP files in one selection.
+  - Files named `sky`, `floor`, `front`, `back`, `left`, and `right` are mapped to the matching background slots.
+  - Background upload accepts up to 64 MB per batch and 10 MB per individual image.
 
 ## Scene Data
 
@@ -33,6 +41,16 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - `fov_degrees` on each camera key
 - Extended character data handling so `proxy_asset` is preserved instead of being forced back to the default SMPL proxy.
 - Proxy asset discovery now exposes all GF5 rigid character assets in `assets/blocky`, while keeping `SMPL-24 Proxy` first when available.
+- Extended scene background data with:
+  - `background.sky_image`
+  - `background.floor_image`
+  - `background.wall_front_image`
+  - `background.wall_back_image`
+  - `background.wall_left_image`
+  - `background.wall_right_image`
+  - `background.show_grid`
+  - `background.show_floor`
+- Background image URLs are restricted to static `/backgrounds/...` paths under `viewer/scene_editor_web/backgrounds/` for predictable local serving and rendering.
 
 ## Rendering
 
@@ -43,6 +61,13 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - curve
   - hold/cut
 - Draft render selects each character's configured `proxy_asset` where available.
+- Draft and final avatar renders composite background images.
+  - `sky_image` is fitted behind the full frame.
+  - Floor and wall images are projected onto scene-aligned planes around the animated characters.
+  - Background planes are near-plane clamped so they continue rendering when only part of the plane is visible.
+- The web shot preview now renders background floor/wall images on a canvas using a perspective-warped subdivided mesh.
+  - This keeps textures anchored in scene space while the camera moves.
+  - SVG remains responsible for the preview grid, characters, and labels.
 
 ## SMPL-X Final Avatars And Hand Poses
 
@@ -170,6 +195,7 @@ For this renderer, simple low-poly OBJ/MTL assets with material colors work bett
   - `.github/workflows/student-release-audit.yml`
   - to `.github/workflows/student-release-audit.yml.disabled`
 - This avoids CI failing on local/custom scene and motion library additions that the release checker forbids.
+- Scene files in `libraries/scenes/` and uploaded background images in `viewer/scene_editor_web/backgrounds/` are intended to be tracked when they are part of a saved scene.
 
 ## Notes / Limitations
 

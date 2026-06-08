@@ -33,6 +33,7 @@ const DEFAULT_EXPORT = { fps: 24, width: 960, height: 540 };
 const FINAL_AVATAR_MAX_FPS = 24;
 const FINAL_AVATAR_MAX_WIDTH = 1280;
 const FINAL_AVATAR_MAX_HEIGHT = 720;
+const BACKGROUND_NEAR_PLANE = 0.03;
 const COLOR_PRESETS = [
   { label: "Teal", value: "#2f7f7b" },
   { label: "Azure", value: "#3f7db8" },
@@ -158,9 +159,11 @@ const app = {
   hyMotionImportStatus: "",
   hyMotionImportError: false,
   hyMotionImportInProgress: false,
+  backgroundImportRotate180: false,
 };
 
 const palette = COLOR_PRESETS.map((preset) => preset.value);
+const backgroundImageCache = new Map();
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -761,8 +764,140 @@ function sceneExport() {
 }
 
 function sceneBackground() {
-  if (!app.scene.background) app.scene.background = { color: "#f4f1ea", image_path: "", show_grid: true, show_floor: true };
+  if (!app.scene.background) app.scene.background = { color: "#f4f1ea", sky_image: "", floor_image: "", wall_front_image: "", wall_back_image: "", wall_left_image: "", wall_right_image: "", show_grid: true, show_floor: true };
+  if (!app.scene.background.sky_image && app.scene.background.image_path) app.scene.background.sky_image = app.scene.background.image_path;
+  if (!("floor_image" in app.scene.background)) app.scene.background.floor_image = "";
+  if (!("wall_front_image" in app.scene.background)) app.scene.background.wall_front_image = "";
+  if (!("wall_back_image" in app.scene.background)) app.scene.background.wall_back_image = "";
+  if (!("wall_left_image" in app.scene.background)) app.scene.background.wall_left_image = "";
+  if (!("wall_right_image" in app.scene.background)) app.scene.background.wall_right_image = "";
+  if (!("show_grid" in app.scene.background)) app.scene.background.show_grid = true;
+  if (!("show_floor" in app.scene.background)) app.scene.background.show_floor = true;
   return app.scene.background;
+}
+
+function validBackgroundUrl(value) {
+  const text = String(value || "").trim();
+  return /^\/backgrounds\/[A-Za-z0-9_. -]+\.(png|jpg|jpeg|webp)$/i.test(text) && !text.includes("..") && !text.includes("\\");
+}
+
+async function uploadBackgroundImage(field) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".jpg,.jpeg,.png,.webp";
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const form = new FormData();
+    try {
+      form.append("file", await prepareBackgroundUploadFile(file));
+      const response = await fetch("/api/upload/background", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.message || "Background upload failed.");
+      pushUndoSnapshot();
+      sceneBackground()[field] = data.url || "";
+      renderAll();
+    } catch (error) {
+      app.exportStatus = error.message || String(error);
+      renderExportPanel();
+    }
+  }, { once: true });
+  input.click();
+}
+
+function backgroundFieldForFilename(filename) {
+  const stem = String(filename || "").replace(/\\/g, "/").split("/").pop().replace(/\.[^.]*$/, "").trim().toLowerCase();
+  const aliases = {
+    sky: "sky_image",
+    floor: "floor_image",
+    front: "wall_front_image",
+    back: "wall_back_image",
+    left: "wall_left_image",
+    right: "wall_right_image",
+  };
+  return aliases[stem] || "";
+}
+
+async function uploadBackgroundSet() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".jpg,.jpeg,.png,.webp";
+  input.multiple = true;
+  input.addEventListener("change", async () => {
+    const files = [...(input.files || [])];
+    if (!files.length) return;
+    const recognized = files.filter((file) => backgroundFieldForFilename(file.name));
+    if (!recognized.length) {
+      app.exportStatus = "Use filenames sky, floor, front, back, left, or right with PNG/JPG/WEBP extensions.";
+      renderExportPanel();
+      return;
+    }
+    const form = new FormData();
+    try {
+      for (const file of recognized) {
+        form.append("file", await prepareBackgroundUploadFile(file));
+      }
+      const response = await fetch("/api/upload/background", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.message || "Background upload failed.");
+      pushUndoSnapshot();
+      const background = sceneBackground();
+      for (const item of data.files || []) {
+        const field = backgroundFieldForFilename(item.filename);
+        if (field && item.url) background[field] = item.url;
+      }
+      renderAll();
+    } catch (error) {
+      app.exportStatus = error.message || String(error);
+      renderExportPanel();
+    }
+  }, { once: true });
+  input.click();
+}
+
+async function prepareBackgroundUploadFile(file) {
+  return app.backgroundImportRotate180 ? rotateImageFile180(file) : file;
+}
+
+async function rotateImageFile180(file) {
+  const image = await loadImageFile(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not prepare background image for rotation.");
+  ctx.translate(canvas.width, canvas.height);
+  ctx.rotate(Math.PI);
+  ctx.drawImage(image, 0, 0);
+  URL.revokeObjectURL(image.src);
+  const mimeType = file.type && /^image\/(png|jpeg|webp)$/i.test(file.type) ? file.type : "image/png";
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, mimeType, 0.92));
+  if (!blob) throw new Error("Could not rotate background image before upload.");
+  return new File([blob], file.name, { type: mimeType, lastModified: Date.now() });
+}
+
+function loadImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => {
+      URL.revokeObjectURL(image.src);
+      reject(new Error(`Could not read background image ${file.name}.`));
+    };
+    image.src = URL.createObjectURL(file);
+  });
+}
+
+function cachedBackgroundImage(url) {
+  if (!validBackgroundUrl(url)) return null;
+  const cached = backgroundImageCache.get(url);
+  if (cached) return cached.complete && cached.naturalWidth > 0 ? cached : null;
+  const image = new Image();
+  image.onload = () => renderShotPreview();
+  image.onerror = () => backgroundImageCache.delete(url);
+  image.src = url;
+  backgroundImageCache.set(url, image);
+  return null;
 }
 
 function avatarOptionsHtml(character) {
@@ -2233,35 +2368,52 @@ function slerpQuaternion(a, b, alpha) {
 }
 
 function projectShot(point, pose, width, height, topDown) {
+  const basis = shotProjectionBasis(pose);
+  const rel = [point[0] - pose.position[0], point[1] - pose.position[1], point[2] - pose.position[2]];
+  const depth = dotVec(rel, basis.forward);
+  if (depth <= BACKGROUND_NEAR_PLANE) return null;
+  return projectShotRelative(rel, depth, basis, pose, width, height, topDown);
+}
+
+function shotProjectionBasis(pose) {
   const forward = normalizeVec([pose.lookAt[0] - pose.position[0], pose.lookAt[1] - pose.position[1], pose.lookAt[2] - pose.position[2]]);
   let right = crossVec(forward, [0, 0, 1]);
   if (Math.hypot(...right) < 1e-5) right = [1, 0, 0];
   else right = normalizeVec(right);
   const up = normalizeVec(crossVec(right, forward));
-  const rel = [point[0] - pose.position[0], point[1] - pose.position[1], point[2] - pose.position[2]];
-  const depth = dotVec(rel, forward);
-  if (depth <= 0.03) return null;
+  return { forward, right, up };
+}
+
+function projectShotRelative(rel, depth, basis, pose, width, height, topDown) {
   const fov = clamp(Number(pose.fovDegrees) || (topDown ? 38 : 45), 10, 120) * Math.PI / 180;
   const focal = 0.5 * height / Math.tan(fov * 0.5);
   return {
-    x: width * 0.5 + dotVec(rel, right) * focal / depth,
-    y: height * 0.54 - dotVec(rel, up) * focal / depth,
+    x: width * 0.5 + dotVec(rel, basis.right) * focal / depth,
+    y: height * 0.54 - dotVec(rel, basis.up) * focal / depth,
     scale: focal / depth,
   };
+}
+
+function projectShotBackgroundPlane(worldCorners, pose, width, height, topDown) {
+  const basis = shotProjectionBasis(pose);
+  const relPoints = worldCorners.map((point) => [point[0] - pose.position[0], point[1] - pose.position[1], point[2] - pose.position[2]]);
+  const depths = relPoints.map((point) => dotVec(point, basis.forward));
+  if (Math.max(...depths) <= BACKGROUND_NEAR_PLANE) return null;
+  return relPoints.map((rel, index) => projectShotRelative(rel, Math.max(depths[index], BACKGROUND_NEAR_PLANE), basis, pose, width, height, topDown));
 }
 
 function renderShotPreview() {
   const svg = $("#shotPreviewSvg");
   if (!svg) return;
-  clear(svg);
   const width = 360;
   const height = 203;
   const pose = cameraPoseAt(app.currentTime);
   const camera = sceneCamera();
   const topDown = camera.preset === "top_down";
   const background = sceneBackground();
-  svg.appendChild(makeSvg("rect", { x: 0, y: 0, width, height, fill: background.color || "#f4f1ea" }));
-  drawShotGrid(svg, pose, width, height, topDown);
+  renderShotBackgroundCanvas(pose, width, height, topDown, background);
+  clear(svg);
+  if (background.show_grid !== false && background.show_floor !== false) drawShotGrid(svg, pose, width, height, topDown);
   const items = app.scene.characters.map((character, index) => {
     if (isCharacterHidden(character)) return null;
     const root = rootAt(character, app.currentTime);
@@ -2269,6 +2421,184 @@ function renderShotPreview() {
     return { character, index, root, depth: center?.scale || 0 };
   }).filter((item) => item && item.depth > 0).sort((a, b) => a.depth - b.depth);
   for (const item of items) drawShotCharacter(svg, item.character, item.index, item.root, pose, width, height, topDown);
+}
+
+function renderShotBackgroundCanvas(pose, width, height, topDown, background) {
+  const canvas = $("#shotPreviewCanvas");
+  if (!canvas) return;
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = background.color || "#f4f1ea";
+  ctx.fillRect(0, 0, width, height);
+  drawShotSkyImages(ctx, pose, width, height, topDown);
+  drawShotWallImages(ctx, pose, width, height, topDown);
+  drawShotFloorImage(ctx, pose, width, height, topDown);
+}
+
+function drawShotFloorImage(ctx, pose, width, height, topDown) {
+  const background = sceneBackground();
+  if (background.show_floor === false || !validBackgroundUrl(background.floor_image)) return;
+  const { center, radius } = sceneCenterAndRadius();
+  const extent = Math.ceil(radius + 1);
+  drawShotImagePlane(ctx, background.floor_image, [
+    [center[0] - extent, center[1] - extent, 0],
+    [center[0] + extent, center[1] - extent, 0],
+    [center[0] + extent, center[1] + extent, 0],
+    [center[0] - extent, center[1] + extent, 0],
+  ], pose, width, height, topDown);
+}
+
+function drawShotSkyImages(ctx, pose, width, height, topDown) {
+  const background = sceneBackground();
+  if (background.show_floor === false || !validBackgroundUrl(background.sky_image)) return;
+  const { center, radius } = sceneCenterAndRadius();
+  const extent = Math.ceil(radius + 1);
+  const skyExtent = extent * 2;
+  const wallHeight = Math.max(2.8, extent * 0.9);
+  const skyHeight = wallHeight * 2;
+  const planes = [
+    [
+      [center[0] - skyExtent, center[1] - skyExtent, skyHeight],
+      [center[0] + skyExtent, center[1] - skyExtent, skyHeight],
+      [center[0] + skyExtent, center[1] + skyExtent, skyHeight],
+      [center[0] - skyExtent, center[1] + skyExtent, skyHeight],
+    ],
+    [
+      [center[0] - extent, center[1] - extent, wallHeight],
+      [center[0] + extent, center[1] - extent, wallHeight],
+      [center[0] + skyExtent, center[1] - skyExtent, skyHeight],
+      [center[0] - skyExtent, center[1] - skyExtent, skyHeight],
+    ],
+    [
+      [center[0] + extent, center[1] + extent, wallHeight],
+      [center[0] - extent, center[1] + extent, wallHeight],
+      [center[0] - skyExtent, center[1] + skyExtent, skyHeight],
+      [center[0] + skyExtent, center[1] + skyExtent, skyHeight],
+    ],
+    [
+      [center[0] - extent, center[1] + extent, wallHeight],
+      [center[0] - extent, center[1] - extent, wallHeight],
+      [center[0] - skyExtent, center[1] - skyExtent, skyHeight],
+      [center[0] - skyExtent, center[1] + skyExtent, skyHeight],
+    ],
+    [
+      [center[0] + extent, center[1] - extent, wallHeight],
+      [center[0] + extent, center[1] + extent, wallHeight],
+      [center[0] + skyExtent, center[1] + skyExtent, skyHeight],
+      [center[0] + skyExtent, center[1] - skyExtent, skyHeight],
+    ],
+  ];
+  for (const corners of planes) drawShotImagePlane(ctx, background.sky_image, corners, pose, width, height, topDown);
+}
+
+function drawShotWallImages(ctx, pose, width, height, topDown) {
+  const background = sceneBackground();
+  if (background.show_floor === false) return;
+  const { center, radius } = sceneCenterAndRadius();
+  const extent = Math.ceil(radius + 1);
+  const wallHeight = Math.max(2.8, extent * 0.9);
+  const planes = [
+    [background.wall_front_image, [
+      [center[0] - extent, center[1] - extent, 0],
+      [center[0] + extent, center[1] - extent, 0],
+      [center[0] + extent, center[1] - extent, wallHeight],
+      [center[0] - extent, center[1] - extent, wallHeight],
+    ]],
+    [background.wall_back_image, [
+      [center[0] + extent, center[1] + extent, 0],
+      [center[0] - extent, center[1] + extent, 0],
+      [center[0] - extent, center[1] + extent, wallHeight],
+      [center[0] + extent, center[1] + extent, wallHeight],
+    ]],
+    [background.wall_left_image, [
+      [center[0] - extent, center[1] + extent, 0],
+      [center[0] - extent, center[1] - extent, 0],
+      [center[0] - extent, center[1] - extent, wallHeight],
+      [center[0] - extent, center[1] + extent, wallHeight],
+    ]],
+    [background.wall_right_image, [
+      [center[0] + extent, center[1] - extent, 0],
+      [center[0] + extent, center[1] + extent, 0],
+      [center[0] + extent, center[1] + extent, wallHeight],
+      [center[0] + extent, center[1] - extent, wallHeight],
+    ]],
+  ];
+  for (const [url, corners] of planes) drawShotImagePlane(ctx, url, corners, pose, width, height, topDown);
+}
+
+function drawShotImagePlane(ctx, url, worldCorners, pose, width, height, topDown) {
+  if (!validBackgroundUrl(url)) return;
+  const image = cachedBackgroundImage(url);
+  if (!image) return;
+  drawPerspectiveImagePlane(ctx, image, worldCorners, pose, width, height, topDown);
+}
+
+function drawPerspectiveImagePlane(ctx, image, worldCorners, pose, width, height, topDown) {
+  const basis = shotProjectionBasis(pose);
+  const segments = 14;
+  const pointAt = (u, v) => [
+    worldCorners[0][0] * (1 - u) * (1 - v) + worldCorners[1][0] * u * (1 - v) + worldCorners[2][0] * u * v + worldCorners[3][0] * (1 - u) * v,
+    worldCorners[0][1] * (1 - u) * (1 - v) + worldCorners[1][1] * u * (1 - v) + worldCorners[2][1] * u * v + worldCorners[3][1] * (1 - u) * v,
+    worldCorners[0][2] * (1 - u) * (1 - v) + worldCorners[1][2] * u * (1 - v) + worldCorners[2][2] * u * v + worldCorners[3][2] * (1 - u) * v,
+  ];
+  const projected = [];
+  for (let y = 0; y <= segments; y += 1) {
+    const row = [];
+    for (let x = 0; x <= segments; x += 1) {
+      row.push(projectBackgroundPoint(pointAt(x / segments, y / segments), pose, basis, width, height, topDown));
+    }
+    projected.push(row);
+  }
+  for (let y = 0; y < segments; y += 1) {
+    for (let x = 0; x < segments; x += 1) {
+      const p00 = projected[y][x];
+      const p10 = projected[y][x + 1];
+      const p11 = projected[y + 1][x + 1];
+      const p01 = projected[y + 1][x];
+      if (!p00.visible && !p10.visible && !p11.visible && !p01.visible) continue;
+      const sx0 = image.naturalWidth * x / segments;
+      const sx1 = image.naturalWidth * (x + 1) / segments;
+      const sy0 = image.naturalHeight * y / segments;
+      const sy1 = image.naturalHeight * (y + 1) / segments;
+      drawImageTriangle(ctx, image, [sx0, sy0], [sx1, sy0], [sx1, sy1], p00, p10, p11);
+      drawImageTriangle(ctx, image, [sx0, sy0], [sx1, sy1], [sx0, sy1], p00, p11, p01);
+    }
+  }
+}
+
+function projectBackgroundPoint(point, pose, basis, width, height, topDown) {
+  const rel = [point[0] - pose.position[0], point[1] - pose.position[1], point[2] - pose.position[2]];
+  const depth = dotVec(rel, basis.forward);
+  return {
+    ...projectShotRelative(rel, Math.max(depth, BACKGROUND_NEAR_PLANE), basis, pose, width, height, topDown),
+    visible: depth > BACKGROUND_NEAR_PLANE,
+  };
+}
+
+function drawImageTriangle(ctx, image, s0, s1, s2, d0, d1, d2) {
+  const denominator = s0[0] * (s1[1] - s2[1]) + s1[0] * (s2[1] - s0[1]) + s2[0] * (s0[1] - s1[1]);
+  if (Math.abs(denominator) < 1e-6) return;
+  const ax = (d0.x * (s1[1] - s2[1]) + d1.x * (s2[1] - s0[1]) + d2.x * (s0[1] - s1[1])) / denominator;
+  const bx = (d0.x * (s2[0] - s1[0]) + d1.x * (s0[0] - s2[0]) + d2.x * (s1[0] - s0[0])) / denominator;
+  const cx = (d0.x * (s1[0] * s2[1] - s2[0] * s1[1]) + d1.x * (s2[0] * s0[1] - s0[0] * s2[1]) + d2.x * (s0[0] * s1[1] - s1[0] * s0[1])) / denominator;
+  const ay = (d0.y * (s1[1] - s2[1]) + d1.y * (s2[1] - s0[1]) + d2.y * (s0[1] - s1[1])) / denominator;
+  const by = (d0.y * (s2[0] - s1[0]) + d1.y * (s0[0] - s2[0]) + d2.y * (s1[0] - s0[0])) / denominator;
+  const cy = (d0.y * (s1[0] * s2[1] - s2[0] * s1[1]) + d1.y * (s2[0] * s0[1] - s0[0] * s2[1]) + d2.y * (s0[0] * s1[1] - s1[0] * s0[1])) / denominator;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(d0.x, d0.y);
+  ctx.lineTo(d1.x, d1.y);
+  ctx.lineTo(d2.x, d2.y);
+  ctx.closePath();
+  ctx.clip();
+  ctx.setTransform(ax, ay, bx, by, cx, cy);
+  ctx.drawImage(image, 0, 0);
+  ctx.restore();
 }
 
 function drawShotGrid(svg, pose, width, height, topDown) {
@@ -3258,6 +3588,7 @@ function renderExportPanel() {
   const panel = $("#exportPanel");
   const camera = sceneCamera();
   const exportSettings = sceneExport();
+  const background = sceneBackground();
   const missingAvatars = missingFinalAvatarLabels();
   const finalDisabled = app.exportInProgress || missingAvatars.length > 0;
   const targetEnabled = CAMERA_TARGET_PRESETS.has(camera.preset);
@@ -3272,10 +3603,26 @@ function renderExportPanel() {
   const avatarOptions = app.scene.characters.map((character) => `<option value="${escapeHtml(character.id)}" ${character.id === camera.target ? "selected" : ""}>${escapeHtml(character.label)}</option>`).join("");
   const targetOptions = `${originOption}${avatarOptions}`;
   panel.innerHTML = `
-    <svg id="shotPreviewSvg" class="shot-preview" viewBox="0 0 360 203" aria-label="Camera shot preview"></svg>
+    <div class="shot-preview">
+      <canvas id="shotPreviewCanvas" class="shot-preview-canvas" width="360" height="203" aria-hidden="true"></canvas>
+      <svg id="shotPreviewSvg" class="shot-preview-svg" viewBox="0 0 360 203" aria-label="Camera shot preview"></svg>
+    </div>
     <div class="field"><label>Camera</label><select id="cameraPreset">${CAMERA_PRESETS.map(([value, label]) => `<option value="${value}" ${value === camera.preset ? "selected" : ""}>${label}</option>`).join("")}</select></div>
     <div class="field"><label>${targetLabel}</label><select id="cameraTarget" ${targetEnabled ? "" : "disabled"}>${targetOptions}</select></div>
     <div class="field"><label>Camera height</label><input id="cameraHeight" type="number" min="0.4" step="0.05" value="${camera.height}"></div>
+    <div class="field"><label>Background set</label><div class="button-row"><button id="uploadBackgroundSet" type="button">Import Set</button></div><div class="readonly-value">Use sky, floor, front, back, left, right filenames.</div></div>
+    <div class="field"><label>Rotate imports 180</label><input id="rotateBackgroundImports" type="checkbox" ${app.backgroundImportRotate180 ? "checked" : ""}></div>
+    <div class="field"><label>Sky image</label><div class="button-row"><button id="uploadSkyImage" type="button">Upload</button><button id="clearSkyImage" type="button" ${background.sky_image ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(background.sky_image || "Flat color fallback")}</div></div>
+    <div class="field"><label>Floor image</label><div class="button-row"><button id="uploadFloorImage" type="button">Upload</button><button id="clearFloorImage" type="button" ${background.floor_image ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(background.floor_image || "No floor texture")}</div></div>
+    <div class="field"><label>Front wall image</label><div class="button-row"><button id="uploadWallFrontImage" type="button">Upload</button><button id="clearWallFrontImage" type="button" ${background.wall_front_image ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(background.wall_front_image || "No front wall")}</div></div>
+    <div class="field"><label>Back wall image</label><div class="button-row"><button id="uploadWallBackImage" type="button">Upload</button><button id="clearWallBackImage" type="button" ${background.wall_back_image ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(background.wall_back_image || "No back wall")}</div></div>
+    <div class="field"><label>Left wall image</label><div class="button-row"><button id="uploadWallLeftImage" type="button">Upload</button><button id="clearWallLeftImage" type="button" ${background.wall_left_image ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(background.wall_left_image || "No left wall")}</div></div>
+    <div class="field"><label>Right wall image</label><div class="button-row"><button id="uploadWallRightImage" type="button">Upload</button><button id="clearWallRightImage" type="button" ${background.wall_right_image ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(background.wall_right_image || "No right wall")}</div></div>
+    <div class="export-grid">
+      <div class="field"><label>Background color</label><input id="backgroundColor" type="color" value="${escapeHtml(background.color || "#f4f1ea")}"></div>
+      <div class="field"><label>Show floor</label><input id="showFloor" type="checkbox" ${background.show_floor === false ? "" : "checked"}></div>
+      <div class="field"><label>Show grid</label><input id="showGrid" type="checkbox" ${background.show_grid === false ? "" : "checked"}></div>
+    </div>
     <div class="export-grid">
       <div class="field"><label>Width</label><input id="exportWidth" type="number" min="320" max="${FINAL_AVATAR_MAX_WIDTH}" step="2" value="${exportSettings.width}"></div>
       <div class="field"><label>Height</label><input id="exportHeight" type="number" min="180" max="${FINAL_AVATAR_MAX_HEIGHT}" step="2" value="${exportSettings.height}"></div>
@@ -3306,6 +3653,23 @@ function renderExportPanel() {
   });
   $("#cameraTarget").addEventListener("change", (event) => { pushUndoSnapshot(); camera.target = event.target.value; renderAll(); });
   $("#cameraHeight").addEventListener("change", (event) => { pushUndoSnapshot(); camera.height = Math.max(0.4, Number(event.target.value)); renderAll(); });
+  $("#uploadBackgroundSet").addEventListener("click", uploadBackgroundSet);
+  $("#rotateBackgroundImports").addEventListener("change", (event) => { app.backgroundImportRotate180 = Boolean(event.target.checked); });
+  $("#uploadSkyImage").addEventListener("click", () => uploadBackgroundImage("sky_image"));
+  $("#uploadFloorImage").addEventListener("click", () => uploadBackgroundImage("floor_image"));
+  $("#uploadWallFrontImage").addEventListener("click", () => uploadBackgroundImage("wall_front_image"));
+  $("#uploadWallBackImage").addEventListener("click", () => uploadBackgroundImage("wall_back_image"));
+  $("#uploadWallLeftImage").addEventListener("click", () => uploadBackgroundImage("wall_left_image"));
+  $("#uploadWallRightImage").addEventListener("click", () => uploadBackgroundImage("wall_right_image"));
+  $("#clearSkyImage").addEventListener("click", () => { pushUndoSnapshot(); background.sky_image = ""; renderAll(); });
+  $("#clearFloorImage").addEventListener("click", () => { pushUndoSnapshot(); background.floor_image = ""; renderAll(); });
+  $("#clearWallFrontImage").addEventListener("click", () => { pushUndoSnapshot(); background.wall_front_image = ""; renderAll(); });
+  $("#clearWallBackImage").addEventListener("click", () => { pushUndoSnapshot(); background.wall_back_image = ""; renderAll(); });
+  $("#clearWallLeftImage").addEventListener("click", () => { pushUndoSnapshot(); background.wall_left_image = ""; renderAll(); });
+  $("#clearWallRightImage").addEventListener("click", () => { pushUndoSnapshot(); background.wall_right_image = ""; renderAll(); });
+  $("#backgroundColor").addEventListener("change", (event) => { pushUndoSnapshot(); background.color = event.target.value || "#f4f1ea"; renderAll(); });
+  $("#showFloor").addEventListener("change", (event) => { pushUndoSnapshot(); background.show_floor = Boolean(event.target.checked); renderAll(); });
+  $("#showGrid").addEventListener("change", (event) => { pushUndoSnapshot(); background.show_grid = Boolean(event.target.checked); renderAll(); });
   $("#exportFps").addEventListener("change", (event) => { pushUndoSnapshot(); exportSettings.fps = clamp(Number(event.target.value), 1, FINAL_AVATAR_MAX_FPS); renderAll(); });
   $("#exportWidth").addEventListener("change", (event) => { pushUndoSnapshot(); exportSettings.width = evenNumber(clamp(Number(event.target.value), 320, FINAL_AVATAR_MAX_WIDTH)); renderAll(); });
   $("#exportHeight").addEventListener("change", (event) => { pushUndoSnapshot(); exportSettings.height = evenNumber(clamp(Number(event.target.value), 180, FINAL_AVATAR_MAX_HEIGHT)); renderAll(); });

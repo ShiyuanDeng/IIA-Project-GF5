@@ -36,6 +36,9 @@ from scene_render import avatar_final_export_settings, export_avatar_scene_video
 
 
 HY_MOTION_IMPORT_MAX_BYTES = 128 * 1024 * 1024
+BACKGROUND_UPLOAD_MAX_BYTES = 64 * 1024 * 1024
+BACKGROUND_UPLOAD_MAX_FILE_BYTES = 10 * 1024 * 1024
+BACKGROUND_UPLOAD_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 class SceneEditorServer(ThreadingHTTPServer):
@@ -257,6 +260,9 @@ class SceneEditorHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/import/hy-motion":
                 self.handle_import_hy_motion()
                 return
+            if parsed.path == "/api/upload/background":
+                self.handle_upload_background()
+                return
             if parsed.path == "/api/export":
                 self.handle_export()
                 return
@@ -411,6 +417,37 @@ class SceneEditorHandler(BaseHTTPRequestHandler):
             }
         )
 
+    def handle_upload_background(self) -> None:
+        try:
+            files = self.read_multipart_files(max_bytes=BACKGROUND_UPLOAD_MAX_BYTES, description="Background upload")
+        except ValueError as exc:
+            self.send_error_json(400, str(exc))
+            return
+        if not files:
+            self.send_error_json(400, "Select at least one background image.")
+            return
+        background_dir = self.server.static_root / "backgrounds"
+        background_dir.mkdir(parents=True, exist_ok=True)
+        uploaded_files: list[dict[str, str]] = []
+        for file in files:
+            if file["suffix"] not in BACKGROUND_UPLOAD_EXTENSIONS:
+                self.send_error_json(400, "Background images must be PNG, JPG, JPEG, or WEBP.")
+                return
+            if len(file["data"]) > BACKGROUND_UPLOAD_MAX_FILE_BYTES:
+                self.send_error_json(400, "Each background image must be 10 MB or smaller.")
+                return
+            safe_stem = "".join(ch for ch in Path(file["filename"]).stem if ch.isalnum() or ch in {"_", "-", " "}).strip()
+            if not safe_stem:
+                safe_stem = "background"
+            filename = f"{uuid.uuid4().hex[:8]}_{safe_stem}{file['suffix']}"
+            output_path = background_dir / filename
+            output_path.write_bytes(file["data"])
+            uploaded_files.append({"filename": file["filename"], "url": f"/backgrounds/{filename}"})
+        payload = {"ok": True, "files": uploaded_files}
+        if len(uploaded_files) == 1:
+            payload["url"] = uploaded_files[0]["url"]
+        self.send_json(payload)
+
     def handle_export(self) -> None:
         payload = self.read_json_body()
         name = str(payload.get("name", DEFAULT_SCENE_STEM))
@@ -490,15 +527,15 @@ class SceneEditorHandler(BaseHTTPRequestHandler):
             return {}
         return json.loads(raw.decode("utf-8"))
 
-    def read_multipart_files(self) -> list[dict[str, Any]]:
+    def read_multipart_files(self, *, max_bytes: int = HY_MOTION_IMPORT_MAX_BYTES, description: str = "HY-Motion import") -> list[dict[str, Any]]:
         content_length = int(self.headers.get("Content-Length", "0") or "0")
         if content_length <= 0:
             raise ValueError("Missing import files.")
-        if content_length > HY_MOTION_IMPORT_MAX_BYTES:
-            raise ValueError("HY-Motion import is larger than the 128 MB limit.")
+        if content_length > max_bytes:
+            raise ValueError(f"{description} is larger than the {max_bytes // (1024 * 1024)} MB limit.")
         content_type = self.headers.get("Content-Type", "")
         if not content_type.startswith("multipart/form-data"):
-            raise ValueError("HY-Motion import must use multipart form data.")
+            raise ValueError(f"{description} must use multipart form data.")
         body = self.rfile.read(content_length)
         header = f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8")
         message = BytesParser(policy=email_default_policy).parsebytes(header + body)

@@ -70,7 +70,7 @@ def parse_mtl_color(path: Path) -> dict[str, list[int]]:
             continue
         keyword, *rest = line.split()
         if keyword == "newmtl" and rest:
-            current = rest[0]
+            current = " ".join(rest)
         elif keyword == "Kd" and current and len(rest) >= 3:
             values = [float(rest[0]), float(rest[1]), float(rest[2])]
             if max(values) <= 1.0:
@@ -133,6 +133,9 @@ def read_obj(path: Path, default_material: str) -> tuple[list[Vec3], list[MeshGr
     groups = [group for group in groups if group.faces]
     if not groups:
         raise ValueError(f"{path} contains no OBJ faces")
+    same_stem_mtl = path.with_suffix(".mtl").resolve()
+    if same_stem_mtl.exists() and same_stem_mtl not in mtllibs and not any(mtllib.exists() for mtllib in mtllibs):
+        mtllibs.append(same_stem_mtl)
     return vertices, groups, mtllibs
 
 

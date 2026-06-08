@@ -1,0 +1,12 @@
+# Blender 5.1.2 MTL File: 'None'
+# www.blender.org
+
+newmtl M_Extnd04_Object_04004_Body_L_Inst
+Ns 20.000006
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 1
+map_Kd ../../../../Downloads/enderman/source/T_Extnd04_Object_04004_body_L_Bc.png
+map_d ../../../../Downloads/enderman/source/T_Extnd04_Object_04004_body_L_Bc.png

@@ -784,11 +784,25 @@ section {
 .shot-preview {
   width: 100%;
   aspect-ratio: 16 / 9;
-  display: block;
+  position: relative;
+  overflow: hidden;
   margin: 9px 0 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #eef2ef;
+}
+
+.shot-preview-canvas,
+.shot-preview-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.shot-preview-svg {
+  pointer-events: none;
 }
 
 .motion-preview {
