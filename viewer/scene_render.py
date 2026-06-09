@@ -216,12 +216,15 @@ def composite_floor_image(
         ]
         for corners in sky_planes:
             composite_image_plane(image, sky_image, corners, camera_position, look_at, width, height, top_down, fov_degrees)
+    # Walls extend 0.5 m below floor so their feathered bottom edge sits underground —
+    # the wall appears fully opaque at floor level and the floor (drawn first) covers the underground strip.
+    wall_bottom = -0.5
     planes = [
         (
             background.get("wall_front_image"),
             [
-                (center[0] - extent, center[1] - extent, 0.0),
-                (center[0] + extent, center[1] - extent, 0.0),
+                (center[0] - extent, center[1] - extent, wall_bottom),
+                (center[0] + extent, center[1] - extent, wall_bottom),
                 (center[0] + extent, center[1] - extent, wall_height),
                 (center[0] - extent, center[1] - extent, wall_height),
             ],
@@ -229,8 +232,8 @@ def composite_floor_image(
         (
             background.get("wall_back_image"),
             [
-                (center[0] + extent, center[1] + extent, 0.0),
-                (center[0] - extent, center[1] + extent, 0.0),
+                (center[0] + extent, center[1] + extent, wall_bottom),
+                (center[0] - extent, center[1] + extent, wall_bottom),
                 (center[0] - extent, center[1] + extent, wall_height),
                 (center[0] + extent, center[1] + extent, wall_height),
             ],
@@ -238,8 +241,8 @@ def composite_floor_image(
         (
             background.get("wall_left_image"),
             [
-                (center[0] - extent, center[1] + extent, 0.0),
-                (center[0] - extent, center[1] - extent, 0.0),
+                (center[0] - extent, center[1] + extent, wall_bottom),
+                (center[0] - extent, center[1] - extent, wall_bottom),
                 (center[0] - extent, center[1] - extent, wall_height),
                 (center[0] - extent, center[1] + extent, wall_height),
             ],
@@ -247,15 +250,14 @@ def composite_floor_image(
         (
             background.get("wall_right_image"),
             [
-                (center[0] + extent, center[1] - extent, 0.0),
-                (center[0] + extent, center[1] + extent, 0.0),
+                (center[0] + extent, center[1] - extent, wall_bottom),
+                (center[0] + extent, center[1] + extent, wall_bottom),
                 (center[0] + extent, center[1] + extent, wall_height),
                 (center[0] + extent, center[1] - extent, wall_height),
             ],
         ),
     ]
-    for url, corners in planes:
-        composite_image_plane(image, url, corners, camera_position, look_at, width, height, top_down, fov_degrees)
+    # Floor drawn before walls; no feather needed since walls cover its edges.
     composite_image_plane(
         image,
         background.get("floor_image"),
@@ -272,6 +274,42 @@ def composite_floor_image(
         top_down,
         fov_degrees,
     )
+    for url, corners in planes:
+        composite_image_plane(image, url, corners, camera_position, look_at, width, height, top_down, fov_degrees)
+
+
+def _clip_quad_near_plane(
+    rel_points: list[Vec3],
+    uvs: list[tuple[float, float]],
+    depths: list[float],
+    near: float,
+) -> list[tuple[Vec3, tuple[float, float], float]]:
+    """Sutherland-Hodgman clip of a quad against depth > near. Returns (rel, uv, depth) triples."""
+    vertices = list(zip(rel_points, uvs, depths))
+    result: list[tuple[Vec3, tuple[float, float], float]] = []
+    n = len(vertices)
+    for i in range(n):
+        a_rel, a_uv, a_d = vertices[i - 1]
+        b_rel, b_uv, b_d = vertices[i]
+        a_in = a_d > near
+        b_in = b_d > near
+        if b_in:
+            if not a_in:
+                t = (near - a_d) / (b_d - a_d)
+                result.append((
+                    tuple(av + t * (bv - av) for av, bv in zip(a_rel, b_rel)),  # type: ignore[arg-type]
+                    (a_uv[0] + t * (b_uv[0] - a_uv[0]), a_uv[1] + t * (b_uv[1] - a_uv[1])),
+                    near,
+                ))
+            result.append((b_rel, b_uv, b_d))
+        elif a_in:
+            t = (near - a_d) / (b_d - a_d)
+            result.append((
+                tuple(av + t * (bv - av) for av, bv in zip(a_rel, b_rel)),  # type: ignore[arg-type]
+                (a_uv[0] + t * (b_uv[0] - a_uv[0]), a_uv[1] + t * (b_uv[1] - a_uv[1])),
+                near,
+            ))
+    return result
 
 
 def composite_image_plane(
@@ -288,53 +326,45 @@ def composite_image_plane(
     source_path = background_image_path(url)
     if source_path is None:
         return
-    projected = project_background_plane(world_corners, camera_position, look_at, width, height, top_down, fov_degrees)
-    if projected is None:
+    forward, right, up = camera_basis(camera_position, look_at)
+    rel_points = [vec_sub(point, camera_position) for point in world_corners]
+    depths = [dot(rel, forward) for rel in rel_points]
+    if max(depths, default=float("-inf")) <= BACKGROUND_NEAR_PLANE:
         return
-    destination = [(float(point[0]), float(point[1])) for point in projected]
+    fov = math.radians(clamp(float(fov_degrees if fov_degrees is not None else (38.0 if top_down else 45.0)), 10.0, 120.0))
+    focal = 0.5 * height / math.tan(fov * 0.5)
+    corner_uvs: list[tuple[float, float]] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+    if min(depths) > BACKGROUND_NEAR_PLANE:
+        clipped = list(zip(rel_points, corner_uvs, depths))
+    else:
+        clipped = _clip_quad_near_plane(rel_points, corner_uvs, depths, BACKGROUND_NEAR_PLANE)
+        if len(clipped) < 3:
+            return
+    screen_pts = [
+        (width * 0.5 + dot(rel, right) * focal / d,
+         height * 0.54 - dot(rel, up) * focal / d)
+        for rel, _uv, d in clipped
+    ]
+    if not any(-width <= x <= 2 * width and -height <= y <= 2 * height for x, y in screen_pts):
+        return
     try:
         with Image.open(source_path) as source:
             texture = source.convert("RGBA")
     except Exception:
         return
-    source_points = [(0.0, 0.0), (float(texture.width), 0.0), (float(texture.width), float(texture.height)), (0.0, float(texture.height))]
-    coeffs = perspective_coefficients(destination, source_points)
+    tw, th = float(texture.width), float(texture.height)
+    _pad = 2.0
+    scaled_tex = [(_pad + uv[0] * (tw - 2 * _pad), _pad + uv[1] * (th - 2 * _pad)) for _rel, uv, _d in clipped]
+    n = len(clipped)
+    indices = [int(i * n / 4) for i in range(4)] if n >= 4 else [0, 1, 2, 0]
+    coeffs = perspective_coefficients([screen_pts[i] for i in indices], [scaled_tex[i] for i in indices])
     if coeffs is None:
         return
-    resampling = Image.Resampling.BICUBIC
-    warped = texture.transform((width, height), Image.Transform.PERSPECTIVE, coeffs, resampling)
-    mask_source = Image.new("L", texture.size, 255)
-    mask = mask_source.transform((width, height), Image.Transform.PERSPECTIVE, coeffs, resampling)
-    image.alpha_composite(warped, (0, 0)) if image.mode == "RGBA" else image.paste(warped.convert("RGB"), (0, 0), mask)
+    warped = texture.transform((width, height), Image.Transform.PERSPECTIVE, coeffs, Image.Resampling.BICUBIC)
+    mask = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(mask).polygon(screen_pts, fill=255)
+    image.paste(warped.convert("RGB"), (0, 0), mask)
 
-
-def project_background_plane(
-    world_corners: list[Vec3],
-    camera_position: Vec3,
-    look_at: Vec3,
-    width: int,
-    height: int,
-    top_down: bool,
-    fov_degrees: float,
-) -> list[tuple[float, float, float]] | None:
-    forward, right, up = camera_basis(camera_position, look_at)
-    rel_points = [vec_sub(point, camera_position) for point in world_corners]
-    depths = [dot(point, forward) for point in rel_points]
-    if max(depths, default=float("-inf")) <= BACKGROUND_NEAR_PLANE:
-        return None
-    fov = math.radians(clamp(float(fov_degrees if fov_degrees is not None else (38.0 if top_down else 45.0)), 10.0, 120.0))
-    focal = 0.5 * height / math.tan(fov * 0.5)
-    projected: list[tuple[float, float, float]] = []
-    for rel, depth in zip(rel_points, depths):
-        safe_depth = max(depth, BACKGROUND_NEAR_PLANE)
-        projected.append(
-            (
-                width * 0.5 + dot(rel, right) * focal / safe_depth,
-                height * 0.54 - dot(rel, up) * focal / safe_depth,
-                focal / safe_depth,
-            )
-        )
-    return projected
 
 
 def character_color(scene: dict[str, Any], character_id: str, index: int) -> tuple[int, int, int]:

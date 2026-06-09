@@ -969,17 +969,52 @@ def scene_warnings(scene: dict[str, Any], motions: list[dict[str, Any]]) -> list
     return warnings[:8]
 
 
-def scene_library(scene_dir: Path) -> list[dict[str, str]]:
+BACKGROUND_IMAGE_FIELDS = (
+    "sky_image",
+    "floor_image",
+    "wall_front_image",
+    "wall_back_image",
+    "wall_left_image",
+    "wall_right_image",
+)
+
+
+def background_url_exists(url: str, static_root: Path) -> bool:
+    path = (static_root / url.lstrip("/")).resolve()
+    backgrounds_dir = (static_root / "backgrounds").resolve()
+    return backgrounds_dir in path.parents and path.exists() and path.is_file()
+
+
+def has_complete_background(raw_scene: dict[str, Any], static_root: Path | None = None) -> bool:
+    background = raw_scene.get("background", {})
+    if not isinstance(background, dict):
+        return False
+    urls = [normalize_background_image_url(background.get(field, "")) for field in BACKGROUND_IMAGE_FIELDS]
+    if not all(urls):
+        return False
+    if static_root is None:
+        return True
+    return all(background_url_exists(url, static_root) for url in urls)
+
+
+def scene_library(scene_dir: Path) -> list[dict[str, Any]]:
     if not scene_dir.exists():
         return []
-    scenes: list[dict[str, str]] = []
+    static_root = scene_dir.parent.parent / "viewer" / "scene_editor_web"
+    scenes: list[dict[str, Any]] = []
     for path in sorted(scene_dir.glob("*.scene.json")):
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
         if raw.get("format") == SCENE_FORMAT:
-            scenes.append({"name": path.stem.removesuffix(".scene"), "path": str(path)})
+            scenes.append(
+                {
+                    "name": path.stem.removesuffix(".scene"),
+                    "path": str(path),
+                    "has_complete_background": has_complete_background(raw, static_root),
+                }
+            )
     return scenes
 
 

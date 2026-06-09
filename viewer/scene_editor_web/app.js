@@ -900,6 +900,39 @@ function cachedBackgroundImage(url) {
   return null;
 }
 
+function completeEnvironmentScenes() {
+  return (app.scenes || []).filter((scene) => scene.has_complete_background);
+}
+
+async function applyEnvironmentFromScene() {
+  const select = $("#environmentSceneSelect");
+  const name = select?.value || "";
+  if (!name) return;
+  try {
+    const response = await fetch(`/api/load?name=${encodeURIComponent(name)}`);
+    const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || data.message || "Could not load background scene.");
+    const source = data.scene?.background;
+    if (!source) throw new Error("Selected scene does not include a background.");
+    pushUndoSnapshot();
+    const target = sceneBackground();
+    target.color = source.color || target.color || "#f4f1ea";
+    target.sky_image = validBackgroundUrl(source.sky_image) ? source.sky_image : "";
+    target.floor_image = validBackgroundUrl(source.floor_image) ? source.floor_image : "";
+    target.wall_front_image = validBackgroundUrl(source.wall_front_image) ? source.wall_front_image : "";
+    target.wall_back_image = validBackgroundUrl(source.wall_back_image) ? source.wall_back_image : "";
+    target.wall_left_image = validBackgroundUrl(source.wall_left_image) ? source.wall_left_image : "";
+    target.wall_right_image = validBackgroundUrl(source.wall_right_image) ? source.wall_right_image : "";
+    target.show_grid = source.show_grid !== false;
+    target.show_floor = source.show_floor !== false;
+    app.exportStatus = `Applied background from ${name}.`;
+    renderAll();
+  } catch (error) {
+    app.exportStatus = error.message || String(error);
+    renderExportPanel();
+  }
+}
+
 function avatarOptionsHtml(character) {
   const value = character.avatar_asset || "";
   const options = [`<option value="" ${value ? "" : "selected"}>${app.avatarAssets.length ? "Not assigned" : "No final avatar sources found"}</option>`];
@@ -3589,6 +3622,7 @@ function renderExportPanel() {
   const camera = sceneCamera();
   const exportSettings = sceneExport();
   const background = sceneBackground();
+  const environmentScenes = completeEnvironmentScenes();
   const missingAvatars = missingFinalAvatarLabels();
   const finalDisabled = app.exportInProgress || missingAvatars.length > 0;
   const targetEnabled = CAMERA_TARGET_PRESETS.has(camera.preset);
@@ -3602,6 +3636,12 @@ function renderExportPanel() {
   const originOption = `<option value="${CAMERA_ORIGIN_TARGET}" ${camera.target === CAMERA_ORIGIN_TARGET ? "selected" : ""}>Scene origin</option>`;
   const avatarOptions = app.scene.characters.map((character) => `<option value="${escapeHtml(character.id)}" ${character.id === camera.target ? "selected" : ""}>${escapeHtml(character.label)}</option>`).join("");
   const targetOptions = `${originOption}${avatarOptions}`;
+  const environmentOptions = environmentScenes
+    .map((scene) => `<option value="${escapeHtml(scene.name)}">${escapeHtml(scene.name)}</option>`)
+    .join("");
+  const environmentHelp = environmentScenes.length
+    ? "Applies only background images, color, floor, and grid settings."
+    : "Save a scene with sky, floor, front, back, left, and right images to list it here.";
   panel.innerHTML = `
     <div class="shot-preview">
       <canvas id="shotPreviewCanvas" class="shot-preview-canvas" width="360" height="203" aria-hidden="true"></canvas>
@@ -3610,6 +3650,7 @@ function renderExportPanel() {
     <div class="field"><label>Camera</label><select id="cameraPreset">${CAMERA_PRESETS.map(([value, label]) => `<option value="${value}" ${value === camera.preset ? "selected" : ""}>${label}</option>`).join("")}</select></div>
     <div class="field"><label>${targetLabel}</label><select id="cameraTarget" ${targetEnabled ? "" : "disabled"}>${targetOptions}</select></div>
     <div class="field"><label>Camera height</label><input id="cameraHeight" type="number" min="0.4" step="0.05" value="${camera.height}"></div>
+    <div class="field"><label>Environment from scene</label><div class="button-row"><select id="environmentSceneSelect" ${environmentScenes.length ? "" : "disabled"}>${environmentOptions || '<option value="">No complete environments</option>'}</select><button id="applyEnvironmentScene" type="button" ${environmentScenes.length ? "" : "disabled"}>Apply</button></div><div class="readonly-value">${escapeHtml(environmentHelp)}</div></div>
     <div class="field"><label>Background set</label><div class="button-row"><button id="uploadBackgroundSet" type="button">Import Set</button></div><div class="readonly-value">Use sky, floor, front, back, left, right filenames.</div></div>
     <div class="field"><label>Rotate imports 180</label><input id="rotateBackgroundImports" type="checkbox" ${app.backgroundImportRotate180 ? "checked" : ""}></div>
     <div class="field"><label>Sky image</label><div class="button-row"><button id="uploadSkyImage" type="button">Upload</button><button id="clearSkyImage" type="button" ${background.sky_image ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(background.sky_image || "Flat color fallback")}</div></div>
@@ -3653,6 +3694,7 @@ function renderExportPanel() {
   });
   $("#cameraTarget").addEventListener("change", (event) => { pushUndoSnapshot(); camera.target = event.target.value; renderAll(); });
   $("#cameraHeight").addEventListener("change", (event) => { pushUndoSnapshot(); camera.height = Math.max(0.4, Number(event.target.value)); renderAll(); });
+  $("#applyEnvironmentScene").addEventListener("click", applyEnvironmentFromScene);
   $("#uploadBackgroundSet").addEventListener("click", uploadBackgroundSet);
   $("#rotateBackgroundImports").addEventListener("change", (event) => { app.backgroundImportRotate180 = Boolean(event.target.checked); });
   $("#uploadSkyImage").addEventListener("click", () => uploadBackgroundImage("sky_image"));

@@ -66,10 +66,15 @@ This file summarizes the local changes added on top of the original GF5 scene re
 - Draft render selects each character's configured `proxy_asset` where available.
 - Draft and final avatar renders composite background images.
   - `sky_image` is rendered as world-space overhead sky geometry rather than a camera-facing screen plate.
-  - The sky uses a ceiling plane plus upper side bands to bridge down to the tops of the wall planes.
+    - `load_background_plate` always returns a flat colour base; the sky image is never applied as a full-frame screen-space layer.
+    - The sky uses a ceiling plane plus four trapezoidal upper bands bridging down to the tops of the wall planes.
   - Floor and wall images are projected onto scene-aligned planes around the animated characters.
-  - Background planes are near-plane clamped so they continue rendering when only part of the plane is visible.
-- The web shot preview now renders background floor/wall images on a canvas using a perspective-warped subdivided mesh.
+  - Background planes use Sutherland-Hodgman near-plane clipping (`_clip_quad_near_plane`) so partially-visible planes render correctly when one or more corners are behind the camera.
+  - Each background plane is rendered with a single Pillow `PERSPECTIVE` transform (exact for planar surfaces) plus a hard polygon mask. No subdivision is used.
+    - A 2 px UV inset on the source coordinates prevents edge-pixel black fringe at polygon boundaries.
+  - Wall planes extend 0.5 m below Z=0 (`wall_bottom = -0.5`) so walls are fully opaque at floor level with no gap.
+  - Compositing draw order is floor first, then walls, so wall edges naturally cover floor edges.
+- The web shot preview now renders background floor/wall images on a canvas using a perspective-warped 14×14 subdivided mesh (affine per triangle via canvas `setTransform`).
   - This keeps textures anchored in scene space while the camera moves.
   - SVG remains responsible for the preview grid, characters, and labels.
 
@@ -200,6 +205,14 @@ For this renderer, simple low-poly OBJ/MTL assets with material colors work bett
   - to `.github/workflows/student-release-audit.yml.disabled`
 - This avoids CI failing on local/custom scene and motion library additions that the release checker forbids.
 - Scene files in `libraries/scenes/` and uploaded background images in `viewer/scene_editor_web/backgrounds/` are intended to be tracked when they are part of a saved scene.
+
+## Bug Fixes
+
+- Fixed root joint handling in `viewer/student_submission/part1_fk.py`.
+  - Root joints have `parent = -1` (integer) in the `JointSpec` dataclass, never `None`.
+  - The original guard `if parent is None:` never matched, so `root_offset` (the character's world-space Z position from waypoints) was silently ignored during forward kinematics.
+  - Fixed to `if parent is None or parent < 0:` so the root translation is applied correctly.
+  - Symptom before fix: characters appeared at the correct XY position in the web preview but floated at a fixed Z height in the final rendered MP4 regardless of waypoint Z values.
 
 ## Notes / Limitations
 
