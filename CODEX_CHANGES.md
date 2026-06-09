@@ -74,6 +74,9 @@ This file summarizes the local changes added on top of the original GF5 scene re
     - A 2 px UV inset on the source coordinates prevents edge-pixel black fringe at polygon boundaries.
   - Wall planes extend 0.5 m below Z=0 (`wall_bottom = -0.5`) so walls are fully opaque at floor level with no gap.
   - Compositing draw order is floor first, then walls, so wall edges naturally cover floor edges.
+  - Floor plane rendered with no feathering (`feather_px=0`) since wall planes cover its edges.
+  - Feathering removed entirely from all planes — Gaussian blur feathering blended against the flat background colour rather than neighbouring planes, producing visible grey gradient bands worse than a hard seam. Hard polygon clip is used instead.
+  - 2 px UV inset (`_pad = 2.0`) on source coordinates prevents black-fringe edge-pixel bleeding at polygon boundaries.
 - The web shot preview now renders background floor/wall images on a canvas using a perspective-warped 14×14 subdivided mesh (affine per triangle via canvas `setTransform`).
   - This keeps textures anchored in scene space while the camera moves.
   - SVG remains responsible for the preview grid, characters, and labels.
@@ -160,6 +163,11 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - `libraries/avatars/SalaryMan_2`
   - `libraries/avatars/Sean`
   - `libraries/avatars/Zohaib`
+- Generated new avatar packages via UP2You inference + `tools/package_gf5_avatar.py`:
+  - `libraries/avatars/Wushi` — input images from `UP2You/Inputs/Wushi/`
+  - `libraries/avatars/terracotta` — input images from `UP2You/Inputs/terracotta/`
+  - Both use the `up2you-cu128` conda env for inference and `gf5` env for packaging.
+  - Inference run with `Manojb/stable-diffusion-2-1-base` (locally cached HuggingFace model).
 
 ## Added Blocky Assets
 
@@ -171,6 +179,12 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - Full SMPL-24 skeleton retained for motion compatibility.
   - One visible low-poly sphere attached to `pelvis`.
   - Available as both `Preview proxy: Magic Sphere` and `Final avatar: Blocky: Magic Sphere`.
+- Added `assets/blocky/eyes.asset.json`.
+  - 10-pair eye set imported from `assets/imports/props/eyes.obj`.
+  - Attached to the `head` joint; scale 0.004884 (≈ 0.4 m diameter per eye).
+  - Sclera parts (material, Eye.A–J): warm off-white (245, 242, 235).
+  - Iris/pupil parts (Iris, Iris.A–J): near-black (20, 16, 14).
+  - Per-material colour overrides applied at import time via `--material-color` flags; the MTL file itself has all-grey defaults.
 
 ## OBJ Mesh Import
 
