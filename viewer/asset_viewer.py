@@ -101,6 +101,7 @@ class AssetData:
     smpl_model_data: SmplModelData | None = None
     skinned_model_data: Any | None = None
     skinning_error: str | None = None
+    final_render_mode: str = "lit"
 
 
 @dataclass
@@ -1154,6 +1155,7 @@ def load_asset(path: Path) -> AssetData:
         topological_order=compute_topological_order(parents),
         profile_name=None if profile is None else profile.name,
         joint_palette=np.zeros((len(joints), 3), dtype=np.uint8),
+        final_render_mode=str(raw.get("source", {}).get("final_render_mode", "lit")),
     )
     asset.joint_palette = build_joint_palette(asset)
     return asset

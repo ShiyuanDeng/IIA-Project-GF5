@@ -400,6 +400,11 @@ function normalizeEditorScene() {
   sceneCamera();
   app.scene.characters.forEach((character, index) => {
     character.color = normalizeCharacterColor(character.color, index);
+    if (character.tint_avatar_colors === undefined) character.tint_avatar_colors = true;
+    if (character.hidden_after !== undefined && character.hidden_after !== null && character.hidden_after !== "") {
+      const hiddenAfter = Number(character.hidden_after);
+      character.hidden_after = Number.isFinite(hiddenAfter) ? clamp(hiddenAfter, 0, app.scene.duration) : null;
+    }
     if (!app.proxyAssets.includes(character.proxy_asset)) character.proxy_asset = defaultProxyAsset();
     if (!Array.isArray(character.root_keys)) character.root_keys = [];
     character.root_keys.forEach((key) => {
@@ -445,6 +450,12 @@ function avatarPartColor(colorValue, partColor) {
   return base.map((channel) => Math.round(clamp(channel * factor, 0, 255)));
 }
 
+function avatarDisplayColor(colorValue, partColor, tintColors = true) {
+  const source = Array.isArray(partColor) ? partColor : [190, 190, 190];
+  if (!tintColors) return source.slice(0, 3).map((channel) => Math.round(clamp(Number(channel) || 0, 0, 255)));
+  return avatarPartColor(colorValue, source);
+}
+
 function strokeForRgb(color) {
   return `rgba(${Math.max(0, color[0] - 35)}, ${Math.max(0, color[1] - 35)}, ${Math.max(0, color[2] - 35)}, 0.38)`;
 }
@@ -458,8 +469,11 @@ function hasCharacterId(id) {
 }
 
 function isCharacterHidden(characterOrId) {
-  const id = typeof characterOrId === "string" ? characterOrId : characterOrId?.id;
-  return Boolean(id && app.hiddenCharacterIds.has(id));
+  const character = typeof characterOrId === "string" ? characterById(characterOrId) : characterOrId;
+  const id = character?.id;
+  if (id && app.hiddenCharacterIds.has(id)) return true;
+  const hiddenAfter = Number(character?.hidden_after);
+  return Number.isFinite(hiddenAfter) && app.currentTime > hiddenAfter + 1e-6;
 }
 
 function pruneHiddenCharacters() {
@@ -1308,6 +1322,50 @@ function setSceneDuration(duration) {
   app.currentTime = clamp(app.currentTime, 0, app.scene.duration);
   renderAll();
   ensureTimelinePlayheadVisible();
+}
+
+function shiftSceneTimeKeysAtOrAfter(atTime, amount) {
+  const threshold = Math.max(0, Number(atTime) || 0);
+  const delta = Math.max(0, Number(amount) || 0);
+  if (delta <= 0) return false;
+  pushUndoSnapshot();
+  app.scene.duration = Math.max(1, Number(app.scene.duration) || 1) + delta;
+  app.scene.characters.forEach((character) => {
+    if (Array.isArray(character.track)) {
+      character.track.forEach((clip) => {
+        const start = Number(clip.start) || 0;
+        if (start >= threshold - 1e-6) clip.start = Number((start + delta).toFixed(6));
+      });
+    }
+    if (Array.isArray(character.root_keys)) {
+      character.root_keys.forEach((key) => {
+        const time = Number(key.time) || 0;
+        if (time >= threshold - 1e-6) key.time = Number((time + delta).toFixed(6));
+      });
+    }
+  });
+  const camera = sceneCamera();
+  cameraKeyframes(camera).forEach((key) => {
+    const time = Number(key.time) || 0;
+    if (time >= threshold - 1e-6) key.time = Number((time + delta).toFixed(6));
+  });
+  app.currentTime = threshold;
+  normalizeEditorScene();
+  renderAll();
+  ensureTimelinePlayheadVisible({ center: true });
+  return true;
+}
+
+function insertTimeAtPlayhead() {
+  const atTime = clamp(Number(app.currentTime) || 0, 0, Number(app.scene.duration) || 0);
+  const input = window.prompt(`Insert how many seconds at ${atTime.toFixed(2)}s?`, "3");
+  if (input === null) return;
+  const amount = Number(input);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    window.alert("Enter a positive number of seconds.");
+    return;
+  }
+  shiftSceneTimeKeysAtOrAfter(atTime, amount);
 }
 
 function timelineScroller() {
@@ -2704,7 +2762,7 @@ function drawShotBlockyCharacter(svg, character, index, root, pose, width, heigh
       if (projected.some((point) => !point)) continue;
       const points = projected.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ");
       const depth = projected.reduce((value, point) => value + point.scale, 0) / projected.length;
-      faces.push({ points, depth, color: avatarPartColor(characterColor(character, index), part.color) });
+      faces.push({ points, depth, color: avatarDisplayColor(characterColor(character, index), part.color, character.tint_avatar_colors !== false) });
     }
   }
   faces.sort((a, b) => a.depth - b.depth);
@@ -2809,7 +2867,7 @@ function renderMotionPreview() {
     const rootMode = defaultRootModeForMotion(motion);
     const sample = sampleMotionPreviewForRootMode(motion, time, rootMode, 0);
     const blockyPose = blockyPreviewPose(asset, root, motion.label, time, sample);
-    drawBlockyPreviewFacesCanvas(ctx, asset, blockyPose, pose, width, height, previewColor);
+    drawBlockyPreviewFacesCanvas(ctx, asset, blockyPose, pose, width, height, previewColor, target?.tint_avatar_colors !== false);
   } else {
     drawMotionPreviewSkeletonCanvas(ctx, motion, pose, width, height, time, previewColor);
   }
@@ -2863,7 +2921,7 @@ function motionPreviewLightDirection(pose) {
   return normalizeVec([toCamera[0] * 0.72, toCamera[1] * 0.72, 0.68 + Math.max(0, toCamera[2]) * 0.2]);
 }
 
-function drawBlockyPreviewFacesCanvas(ctx, asset, blockyPose, pose, width, height, previewColor) {
+function drawBlockyPreviewFacesCanvas(ctx, asset, blockyPose, pose, width, height, previewColor, tintColors = true) {
   const light = motionPreviewLightDirection(pose);
   const faces = [];
   for (const part of asset.parts) {
@@ -2881,7 +2939,7 @@ function drawBlockyPreviewFacesCanvas(ctx, asset, blockyPose, pose, width, heigh
       const v2 = worldVertices[face[2]];
       const normal = normalizeVec(crossVec(subVec(v1, v0), subVec(v2, v0)));
       const shade = clamp(0.58 + Math.max(0, dotVec(normal, light)) * 0.38, 0.48, 1.0);
-      const baseColor = avatarPartColor(previewColor, part.color);
+      const baseColor = avatarDisplayColor(previewColor, part.color, tintColors);
       faces.push({
         points: projected,
         depth: projected.reduce((value, point) => value + point.depth, 0) / projected.length,
@@ -2934,7 +2992,7 @@ function drawMotionPreviewFloor(svg, pose, width, height) {
   }
 }
 
-function drawBlockyPreviewFaces(svg, asset, blockyPose, pose, width, height, previewColor) {
+function drawBlockyPreviewFaces(svg, asset, blockyPose, pose, width, height, previewColor, tintColors = true) {
   const faces = [];
   for (const part of asset.parts) {
     const jointIndex = blockyPose.jointLookup[part.joint];
@@ -2948,7 +3006,7 @@ function drawBlockyPreviewFaces(svg, asset, blockyPose, pose, width, height, pre
       if (projected.some((point) => !point)) continue;
       const points = projected.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ");
       const depth = projected.reduce((value, point) => value + point.scale, 0) / projected.length;
-      faces.push({ points, depth, color: avatarPartColor(previewColor, part.color) });
+      faces.push({ points, depth, color: avatarDisplayColor(previewColor, part.color, tintColors) });
     }
   }
   faces.sort((a, b) => a.depth - b.depth);
@@ -3612,9 +3670,11 @@ function renderSceneInspector(panel) {
     <div class="field"><label>Camera path</label><div class="readonly-value">${camera.preset === "keyframed" ? `${keyCount} key${keyCount === 1 ? "" : "s"}` : "Use Keyframed camera preset to edit camera keys."}</div></div>
     <div class="button-row">
       <button id="addCameraKeyAtPlayhead" ${camera.preset === "keyframed" ? "" : "disabled"}>Add Camera Key</button>
+      <button id="insertTimeAtPlayhead">Insert Time</button>
     </div>
   `;
   $("#addCameraKeyAtPlayhead").addEventListener("click", addCameraKeyAtPlayhead);
+  $("#insertTimeAtPlayhead").addEventListener("click", insertTimeAtPlayhead);
 }
 
 function renderExportPanel() {
@@ -3772,9 +3832,13 @@ function renderCharacterInspector(panel, selection) {
       <span class="color-swatch-chip"></span>
     </button>
   `).join("");
+  const hiddenAfter = Number(character.hidden_after);
+  const hideStatus = Number.isFinite(hiddenAfter) ? `Hidden after ${hiddenAfter.toFixed(2)}s` : "Visible entire scene";
   panel.innerHTML = `
     <div class="field"><label>Name</label><input id="charLabel" value="${escapeHtml(character.label)}"></div>
     <div class="field"><label>Color</label><div class="color-preset-grid">${colorButtons}</div></div>
+    <div class="field"><label><input id="charTintAvatarColors" type="checkbox" ${character.tint_avatar_colors === false ? "" : "checked"}> Tint avatar/proxy colors</label></div>
+    <div class="field"><label>Visibility</label><div class="button-row"><button id="hideCharacterAfterPlayhead">Hide After Playhead</button><button id="clearCharacterHide" ${Number.isFinite(hiddenAfter) ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(hideStatus)}</div></div>
     <div class="field"><label>Preview proxy</label><select id="charProxy">${proxyOptionsHtml(character)}</select></div>
     <div class="field"><label>Final avatar</label><select id="charAvatar">${avatarOptionsHtml(character)}</select></div>
   `;
@@ -3791,6 +3855,21 @@ function renderCharacterInspector(panel, selection) {
       character.color = nextColor;
       renderAll();
     });
+  });
+  $("#charTintAvatarColors").addEventListener("change", (event) => {
+    pushUndoSnapshot();
+    character.tint_avatar_colors = event.target.checked;
+    renderAll();
+  });
+  $("#hideCharacterAfterPlayhead").addEventListener("click", () => {
+    pushUndoSnapshot();
+    character.hidden_after = Number(app.currentTime.toFixed(6));
+    renderAll();
+  });
+  $("#clearCharacterHide").addEventListener("click", () => {
+    pushUndoSnapshot();
+    delete character.hidden_after;
+    renderAll();
   });
   $("#charAvatar").addEventListener("change", (event) => {
     pushUndoSnapshot();
@@ -4609,6 +4688,8 @@ function addCharacter() {
     id,
     label: `Avatar ${index}`,
     color: randomAvatarColor(),
+    tint_avatar_colors: true,
+    hidden_after: null,
     proxy_asset: defaultProxyAsset(),
     avatar_asset: "",
     track: [],

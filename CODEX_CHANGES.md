@@ -24,6 +24,19 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - Character inspector now has `Preview proxy`.
   - The web stage preview uses the selected proxy asset per character.
   - Scene save/load preserves each character's `proxy_asset`.
+- Added per-character avatar/proxy color tint control.
+  - Character inspector now has `Tint avatar/proxy colors`.
+  - When enabled, preview/proxy colors keep the previous character-color tint behavior.
+  - When disabled, rigid asset material colors are shown directly in the web preview and draft/proxy render.
+- Added per-character hide-after timing.
+  - Character inspector now has `Hide After Playhead` and `Clear` controls.
+  - The saved `hidden_after` value hides that character in web preview, draft/proxy render, and final avatar render after the selected time.
+  - This is a lightweight visibility cutoff rather than a full visibility keyframe track.
+- Added scene-level `Insert Time` action.
+  - Available from the scene inspector.
+  - Inserts time at the current playhead by a prompted number of seconds.
+  - Shifts character clip starts, character root-key times, and camera keyframe times at or after the playhead.
+  - Increases scene duration and preserves segment links because root/camera segments reference key IDs.
 - Added scene background image controls to the Preview & Export panel.
   - Background fields include `sky_image`, `floor_image`, `wall_front_image`, `wall_back_image`, `wall_left_image`, and `wall_right_image`.
   - Existing legacy `background.image_path` values are migrated to `sky_image`.
@@ -43,6 +56,8 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - `camera.segments`
   - `fov_degrees` on each camera key
 - Extended character data handling so `proxy_asset` is preserved instead of being forced back to the default SMPL proxy.
+- Extended character data handling so `tint_avatar_colors` is preserved, defaulting to enabled for older scenes.
+- Extended character data handling so `hidden_after` is preserved and clamped to scene duration.
 - Proxy asset discovery now exposes all GF5 rigid character assets in `assets/blocky`, while keeping `SMPL-24 Proxy` first when available.
 - Extended scene background data with:
   - `background.sky_image`
@@ -64,6 +79,8 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - curve
   - hold/cut
 - Draft render selects each character's configured `proxy_asset` where available.
+- Draft/proxy render respects each character's `tint_avatar_colors` flag.
+- Draft/proxy and final avatar renders skip characters after their `hidden_after` time.
 - Draft and final avatar renders composite background images.
   - `sky_image` is rendered as world-space overhead sky geometry rather than a camera-facing screen plate.
     - `load_background_plate` always returns a flat colour base; the sky image is never applied as a full-frame screen-space layer.
@@ -80,6 +97,10 @@ This file summarizes the local changes added on top of the original GF5 scene re
 - The web shot preview now renders background floor/wall images on a canvas using a perspective-warped 14×14 subdivided mesh (affine per triangle via canvas `setTransform`).
   - This keeps textures anchored in scene space while the camera moves.
   - SVG remains responsible for the preview grid, characters, and labels.
+- Final avatar rendering supports a flat rigid-asset mode.
+  - Rigid assets whose source metadata has `final_render_mode: "flat"` are projected as unlit colored triangles.
+  - This is used for texture-lamina billboard assets where pyrender lighting made thin planes look too dark/brown.
+  - Normal rigid assets continue to use the lit pyrender mesh path.
 
 ## SMPL-X Final Avatars And Hand Poses
 
@@ -185,6 +206,10 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - Sclera parts (material, Eye.A–J): warm off-white (245, 242, 235).
   - Iris/pupil parts (Iris, Iris.A–J): near-black (20, 16, 14).
   - Per-material colour overrides applied at import time via `--material-color` flags; the MTL file itself has all-grey defaults.
+- Added `assets/blocky/leaf1.asset.json`.
+  - Imported from `assets/imports/props/leaf1/leaf1.obj`.
+  - Uses texture-lamina import mode to convert the alpha-textured leaf plane into colored rigid mesh geometry.
+  - Generated with 3 color clusters, 64-cell lamina resolution, 0.35 m target width, and final-render flat mode.
 
 ## OBJ Mesh Import
 
@@ -193,6 +218,14 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - Splits OBJ geometry by object/group/material run into colored rigid parts.
   - Copies the SMPL-24 proxy skeleton so imported assets remain motion-compatible.
   - Lets the user attach the imported mesh to one joint such as `pelvis`, `right_hand`, `head`, etc.
+  - Reads MTL `map_Kd` diffuse texture references and derives a material color from the texture when `Kd` is missing or neutral grey.
+  - Resolves texture paths relative to the MTL file, including paths with spaces and Windows-style backslashes.
+  - Adds `--texture-lamina` mode for alpha-textured billboard/lamina props.
+    - Converts visible texture pixels into flat mesh geometry so the rendered shape follows the texture silhouette instead of the original square plane.
+    - Groups texture cells into a configurable number of material-color clusters via `--texture-colors`.
+    - Supports `--texture-lamina-width`, `--texture-lamina-resolution`, and `--texture-alpha-threshold`.
+    - Supports `--texture-color-saturation` and `--texture-color-brightness` to compensate for final-render grading on individual lamina assets.
+    - Marks lamina assets with `final_render_mode: "flat"` so final export can render them without pyrender lighting.
 - Added `assets/blocky/IMPORT_OBJ_README.md`.
   - Documents the supported OBJ/MTL subset, coordinate system, importer commands, and limitations.
 
@@ -203,6 +236,7 @@ Recommended source pipeline for object meshes:
 3. Clean it up: apply transforms, reduce triangle count if needed, and assign simple material colors.
 4. Export from Blender as Wavefront OBJ with a matching MTL file.
 5. Run `assets/blocky/import_obj_asset.py` to generate `assets/blocky/<name>.asset.json`.
+6. For alpha-textured planes such as leaves, use `--texture-lamina` instead of the normal rigid OBJ import.
 
 Good source categories:
 
@@ -210,7 +244,7 @@ Good source categories:
 - Phone scanning tools such as Polycam or Scaniverse for real objects.
 - AI text/image-to-3D tools such as Meshy for quick fantasy props.
 
-For this renderer, simple low-poly OBJ/MTL assets with material colors work better than dense textured scans.
+For this renderer, simple low-poly OBJ/MTL assets with material colors work better than dense textured scans. Diffuse texture files can now provide fallback material colors, and alpha-textured lamina assets can be converted into approximate colored mesh geometry.
 
 ## Workflow / Repo
 

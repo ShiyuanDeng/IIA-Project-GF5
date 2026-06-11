@@ -778,10 +778,19 @@ def normalize_character(
     proxy_asset = str(raw.get("proxy_asset", default_asset))
     if proxy_asset not in valid_proxy_assets:
         proxy_asset = default_asset
+    hidden_after_raw = raw.get("hidden_after", None)
+    hidden_after = None
+    if hidden_after_raw not in (None, ""):
+        try:
+            hidden_after = max(0.0, min(scene_duration, float(hidden_after_raw)))
+        except (TypeError, ValueError):
+            hidden_after = None
     return {
         "id": character_id,
         "label": str(raw.get("label", character_id.replace("_", " ").title())),
         "color": normalize_character_color(raw.get("color"), index),
+        "tint_avatar_colors": bool(raw.get("tint_avatar_colors", True)),
+        "hidden_after": hidden_after,
         "proxy_asset": proxy_asset,
         "avatar_asset": str(raw.get("avatar_asset", raw.get("asset", ""))),
         "track": track,

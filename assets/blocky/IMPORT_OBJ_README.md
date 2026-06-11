@@ -23,16 +23,16 @@ Supported MTL statements:
 
 - `newmtl name`
 - `Kd r g b` diffuse color
+- `map_Kd path/to/texture.png` diffuse texture reference
 
 Ignored input data:
 
 - UVs: `vt`
 - normals: `vn`
-- texture images: `map_Kd`
 - metal/roughness/transparency/material shaders
 - animation, armatures, skinning, bones
 
-The importer preserves simple material colors by splitting the OBJ into one GF5 `rigid_part` per object/group/material run.
+The importer preserves simple material colors by splitting the OBJ into one GF5 `rigid_part` per object/group/material run. When a material references a diffuse texture with `map_Kd`, the importer samples that image and uses its average color if `Kd` is missing or neutral gray.
 
 ## Coordinate System
 
@@ -108,6 +108,24 @@ python assets/blocky/import_obj_asset.py \
   --out assets/blocky/indoor_plant.asset.json
 ```
 
+Convert an alpha-textured plane into a colored lamina mesh:
+
+```bash
+python assets/blocky/import_obj_asset.py \
+  --obj assets/imports/props/leaf1/leaf1.obj \
+  --name "Leaf 1" \
+  --joint pelvis \
+  --texture-lamina \
+  --texture-lamina-width 0.35 \
+  --texture-lamina-resolution 64 \
+  --texture-colors 3 \
+  --texture-color-saturation 1.25 \
+  --texture-color-brightness 1.12 \
+  --out assets/blocky/leaf1.asset.json
+```
+
+`--texture-lamina` is intended for billboard-like props where the visible shape comes from a diffuse texture, such as leaves, paper cutouts, and simple signs. It reads the material's `map_Kd` image, uses the alpha channel or corner background color to find visible pixels, converts those pixels into flat mesh geometry, and groups the cells into a small number of material colors. `--texture-lamina-width` sets the largest generated dimension in meters; if omitted, the importer uses the original OBJ plane size. `--texture-color-saturation` and `--texture-color-brightness` can compensate for final-render grading on assets that look too muted or dark.
+
 After importing, refresh the web editor. The generated asset appears as:
 
 - `Preview proxy: <name>`
@@ -134,9 +152,9 @@ Useful object sources:
 Best results for the current renderer:
 
 - Prefer low-poly assets.
-- Prefer material colors over image textures.
+- Prefer material colors or diffuse/base-color texture images over shader-only materials.
 - Keep one object per OBJ.
-- Keep OBJ, MTL, and any texture files in the same folder, even though this importer currently reads only MTL diffuse color `Kd`.
+- Keep OBJ, MTL, and any texture files in the same folder or in relative subfolders referenced by `map_Kd`.
 - Keep each object to a few thousand triangles or less for responsive web preview.
 
 ## Limitations

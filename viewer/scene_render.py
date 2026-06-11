@@ -382,6 +382,27 @@ def tinted_part_color(character_rgb: tuple[int, int, int], part_rgb: tuple[int, 
     )  # type: ignore[return-value]
 
 
+def character_tints_avatar_colors(scene: dict[str, Any], character_id: str) -> bool:
+    for character in scene.get("characters", []):
+        if isinstance(character, dict) and str(character.get("id", "")) == character_id:
+            return bool(character.get("tint_avatar_colors", True))
+    return True
+
+
+def character_visible_at(scene: dict[str, Any], character_id: str, scene_time: float) -> bool:
+    for character in scene.get("characters", []):
+        if not isinstance(character, dict) or str(character.get("id", "")) != character_id:
+            continue
+        hidden_after = character.get("hidden_after", None)
+        if hidden_after in (None, ""):
+            return True
+        try:
+            return scene_time <= float(hidden_after) + 1e-6
+        except (TypeError, ValueError):
+            return True
+    return True
+
+
 def sorted_keys(character: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(character.get("root_keys", []), key=lambda key: (float(key.get("time", 0.0)), str(key.get("id", ""))))
 
@@ -886,6 +907,8 @@ def draw_proxy_asset_characters(
     transform_world_pose = proxy_context["transform_world_pose"]
 
     for index, character in enumerate(motion_scene.characters):
+        if not character_visible_at(scene, character.character_id, scene_time):
+            continue
         sample = sample_character_pose(character, scene_time, motion_library)
         if sample is None:
             continue
@@ -900,15 +923,17 @@ def draw_proxy_asset_characters(
             facing_degrees,
         )
         base_color = character_color(scene, character.character_id, index)
+        tint_colors = character_tints_avatar_colors(scene, character.character_id)
         for part in asset.parts:
             joint_index = part.joint_index
             vertices = np.asarray(part.vertices, dtype=np.float32) @ np.asarray(rotations[joint_index], dtype=np.float32).T
             vertices = vertices + np.asarray(positions[joint_index], dtype=np.float32)
+            part_color = tinted_part_color(base_color, part.color) if tint_colors else tuple(int(channel) for channel in part.color)
             collect_projected_triangles(
                 triangles,
                 vertices,
                 part.faces,
-                tinted_part_color(base_color, part.color),
+                part_color,
                 camera_position,
                 look_at,
                 width,
@@ -967,6 +992,9 @@ def render_scene_frame(
 
     draw_items: list[tuple[float, int, dict[str, Any], Vec3, float]] = []
     for index, character in enumerate(scene.get("characters", [])):
+        character_id = str(character.get("id", ""))
+        if character_id and not character_visible_at(scene, character_id, scene_time):
+            continue
         root, facing = root_at(character, scene_time)
         projected = project_point((root[0], root[1], root[2] + 0.8), camera_position, look_at, width, height, top_down=top_down, fov_degrees=fov_degrees)
         if projected:
@@ -1301,6 +1329,41 @@ def rigid_asset_frame_mesh(asset: Any, world_rotations: Any, world_positions: An
     return vertices, faces, colors
 
 
+def collect_flat_rigid_asset_triangles(
+    triangles: list[tuple[float, tuple[tuple[float, float], ...], tuple[int, int, int]]],
+    asset: Any,
+    world_rotations: Any,
+    world_positions: Any,
+    camera_position: Vec3,
+    look_at: Vec3,
+    width: int,
+    height: int,
+    top_down: bool,
+    fov_degrees: float,
+) -> None:
+    import numpy as np
+
+    for part in asset.parts:
+        joint_index = int(part.joint_index)
+        vertices = (
+            np.asarray(part.vertices, dtype=np.float32)
+            @ np.asarray(world_rotations[joint_index], dtype=np.float32).T
+            + np.asarray(world_positions[joint_index], dtype=np.float32)
+        )
+        collect_projected_triangles(
+            triangles,
+            vertices,
+            part.faces,
+            tuple(int(channel) for channel in part.color),
+            camera_position,
+            look_at,
+            width,
+            height,
+            top_down=top_down,
+            fov_degrees=fov_degrees,
+        )
+
+
 class OffscreenAvatarRenderer:
     def __init__(self, width: int, height: int) -> None:
         if Image is None:
@@ -1493,9 +1556,14 @@ def export_avatar_scene_video(
             composite_floor_image(image, background, scene, scene_time, width, height)
             draw = ImageDraw.Draw(image, "RGBA")
             draw_avatar_floor(draw, scene, scene_time, width, height)
+            camera_position, look_at, fov_degrees = camera_state(scene, scene_time)
+            top_down = str(scene.get("camera", {}).get("preset", "")) == "top_down"
 
             render_meshes: list[tuple[Any, Any, Any]] = []
+            flat_triangles: list[tuple[float, tuple[tuple[float, float], ...], tuple[int, int, int]]] = []
             for character in motion_scene.characters:
+                if not character_visible_at(scene, character.character_id, scene_time):
+                    continue
                 sample = sample_character_pose(character, scene_time, motion_library)
                 if sample is None:
                     continue
@@ -1516,6 +1584,20 @@ def export_avatar_scene_video(
                     facing_degrees,
                 )
                 if asset.asset_kind == "rigid":
+                    if getattr(asset, "final_render_mode", "lit") == "flat":
+                        collect_flat_rigid_asset_triangles(
+                            flat_triangles,
+                            asset,
+                            world_rotations,
+                            world_positions,
+                            camera_position,
+                            look_at,
+                            width,
+                            height,
+                            top_down,
+                            fov_degrees,
+                        )
+                        continue
                     render_meshes.append(rigid_asset_frame_mesh(asset, world_rotations, world_positions))
                     continue
                 mesh_vertices = skin_smpl_mesh(
@@ -1535,6 +1617,9 @@ def export_avatar_scene_video(
             if render_meshes:
                 overlay = avatar_renderer.render(scene, scene_time, render_meshes)
                 image = Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB")
+                draw = ImageDraw.Draw(image, "RGBA")
+            for _, coords, color in sorted(flat_triangles, key=lambda item: item[0]):
+                draw.polygon(coords, fill=(*color, 235))
             yield image
             if progress_callback is not None:
                 progress_callback(frame_index + 1, frame_count)
