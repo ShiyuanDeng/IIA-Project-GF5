@@ -1,7 +1,7 @@
 {
   "format": "gf5_motion_scene",
   "version": 3,
-  "duration": 3.5,
+  "duration": 4.0,
   "background": {
     "color": "#f4f1ea",
     "sky_image": "",
@@ -21,7 +21,7 @@
     "segments": []
   },
   "export": {
-    "fps": 1,
+    "fps": 15,
     "width": 960,
     "height": 540
   },
@@ -30,28 +30,20 @@
       "id": "host",
       "label": "Host",
       "color": "#2f7f7b",
+      "tint_avatar_colors": true,
+      "hidden_after": null,
       "proxy_asset": "SMPL-24 Proxy",
-      "avatar_asset": "SMPL-X: terracotta",
+      "avatar_asset": "SMPL-X: Wushi",
       "track": [
         {
-          "clip": "Preset: Start walking",
+          "clip": "Custom: HY-Motion: bow down",
           "start": 0.0,
-          "duration": 1.2,
+          "duration": 4.0,
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
           "hand_pose": "fist",
-          "blend_in": 0.36,
-          "blend_out": 0.36
-        },
-        {
-          "clip": "Preset: Right-hand wave",
-          "start": 1.2,
-          "duration": 2.2,
-          "trim_start": 0.0,
-          "trim_end": null,
-          "root_mode": "path",
-          "hand_pose": "natural",
+          "shoulder_mask": "arms_forward",
           "blend_in": 0.45,
           "blend_out": 0.45
         }

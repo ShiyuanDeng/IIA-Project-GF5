@@ -92,6 +92,7 @@ class TrackClip:
     trim_end: float | None = None
     root_mode: str = "path"
     hand_pose: str = "natural"
+    shoulder_mask: str = "normal"
     root_start: Vec3f = field(default_factory=lambda: np.zeros(3, dtype=np.float32))
     root_end: Vec3f = field(default_factory=lambda: np.zeros(3, dtype=np.float32))
     facing_degrees: float = 0.0
@@ -257,6 +258,7 @@ def track_clip_from_json(raw: dict[str, Any]) -> TrackClip:
         ),
         root_mode=str(raw.get("root_mode", "path")),
         hand_pose=normalize_hand_pose(raw.get("hand_pose")),
+        shoulder_mask=normalize_shoulder_mask(raw.get("shoulder_mask")),
         root_start=np.asarray(raw.get("root_start", [0.0, 0.0, 0.0]), dtype=np.float32),
         root_end=np.asarray(raw.get("root_end", raw.get("root_start", [0.0, 0.0, 0.0])), dtype=np.float32),
         facing_degrees=float(raw.get("facing_degrees", 0.0)),
@@ -268,6 +270,11 @@ def track_clip_from_json(raw: dict[str, Any]) -> TrackClip:
 def normalize_hand_pose(value: Any) -> str:
     text = str(value or "natural").strip().lower()
     return text if text in {"natural", "fist"} else "natural"
+
+
+def normalize_shoulder_mask(value: Any) -> str:
+    text = str(value or "normal").strip().lower()
+    return text if text in {"normal", "arms_forward"} else "normal"
 
 
 def track_clip_blend_from_json(raw: dict[str, Any], key: str, duration: float) -> float:
@@ -290,6 +297,8 @@ def track_clip_to_json(clip: TrackClip) -> dict[str, Any]:
         payload["trim_end"] = round(float(clip.trim_end), 6)
     if normalize_hand_pose(clip.hand_pose) != "natural":
         payload["hand_pose"] = normalize_hand_pose(clip.hand_pose)
+    if normalize_shoulder_mask(clip.shoulder_mask) != "normal":
+        payload["shoulder_mask"] = normalize_shoulder_mask(clip.shoulder_mask)
     if clip.blend_in > 0.0:
         payload["blend_in"] = round(float(clip.blend_in), 6)
     if clip.blend_out > 0.0:
@@ -1076,7 +1085,11 @@ def hand_pose_value(clip: TrackClip | None) -> float:
     return 1.0 if clip is not None and normalize_hand_pose(clip.hand_pose) == "fist" else 0.0
 
 
-def hand_pose_weight_at(character: SceneCharacter, scene_time: float) -> float:
+def shoulder_mask_value(clip: TrackClip | None) -> float:
+    return 1.0 if clip is not None and normalize_shoulder_mask(clip.shoulder_mask) == "arms_forward" else 0.0
+
+
+def clip_effect_weight_at(character: SceneCharacter, scene_time: float, value_fn: Any) -> float:
     ordered = sorted(character.track, key=lambda item: float(item.start))
     for first, second in zip(ordered[:-1], ordered[1:]):
         window = clip_transition_window(first, second)
@@ -1087,7 +1100,7 @@ def hand_pose_weight_at(character: SceneCharacter, scene_time: float) -> float:
             continue
         if window_start <= scene_time <= window_end:
             alpha = smoothstep((scene_time - window_start) / (window_end - window_start))
-            return (1.0 - alpha) * hand_pose_value(first) + alpha * hand_pose_value(second)
+            return (1.0 - alpha) * value_fn(first) + alpha * value_fn(second)
 
     for index, clip in enumerate(ordered):
         start = float(clip.start)
@@ -1101,7 +1114,7 @@ def hand_pose_weight_at(character: SceneCharacter, scene_time: float) -> float:
                 if scene_time <= previous_end + 1e-6 or start - previous_end <= MAX_TRANSITION_GAP_SECONDS:
                     continue
             alpha = smoothstep((scene_time - (start - blend_in)) / blend_in)
-            return alpha * hand_pose_value(clip)
+            return alpha * value_fn(clip)
         if blend_out > 1e-6 and end < scene_time <= end + blend_out:
             next_clip = ordered[index + 1] if index < len(ordered) - 1 else None
             if next_clip is not None:
@@ -1109,12 +1122,20 @@ def hand_pose_weight_at(character: SceneCharacter, scene_time: float) -> float:
                 if scene_time >= next_start - 1e-6 or next_start - end <= MAX_TRANSITION_GAP_SECONDS:
                     continue
             alpha = smoothstep((scene_time - end) / blend_out)
-            return (1.0 - alpha) * hand_pose_value(clip)
+            return (1.0 - alpha) * value_fn(clip)
 
     for clip in ordered:
         if clip.start <= scene_time <= clip_end_time(clip):
-            return hand_pose_value(clip)
+            return value_fn(clip)
     return 0.0
+
+
+def hand_pose_weight_at(character: SceneCharacter, scene_time: float) -> float:
+    return clip_effect_weight_at(character, scene_time, hand_pose_value)
+
+
+def shoulder_mask_weight_at(character: SceneCharacter, scene_time: float) -> float:
+    return clip_effect_weight_at(character, scene_time, shoulder_mask_value)
 
 
 def interpolate_angle_degrees(start: float, end: float, alpha: float) -> float:

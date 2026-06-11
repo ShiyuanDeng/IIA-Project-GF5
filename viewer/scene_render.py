@@ -1489,6 +1489,7 @@ def export_avatar_scene_video(
         raise RuntimeError("Pillow is required for video export. Install pillow in the GF5 environment.") from PIL_IMPORT_ERROR
 
     from asset_viewer import (
+        apply_shoulder_mask,
         apply_smplx_hand_pose,
         load_asset,
         load_smpl_asset,
@@ -1501,6 +1502,7 @@ def export_avatar_scene_video(
         hand_pose_weight_at,
         scene_from_json,
         sample_character_pose,
+        shoulder_mask_weight_at,
         transform_world_pose,
     )
     from smpl_support import skin_smpl_mesh
@@ -1571,6 +1573,11 @@ def export_avatar_scene_video(
                 draw_avatar_contact_shadow(draw, scene, scene_time, stage_root, width, height)
                 asset = avatar_cache[character.character_id]
                 local_rotations = pose_sample_to_asset_local_rotations(asset, pose_sample)
+                local_rotations = apply_shoulder_mask(
+                    asset,
+                    local_rotations,
+                    shoulder_mask_weight_at(character, scene_time),
+                )
                 local_rotations = apply_smplx_hand_pose(
                     asset,
                     local_rotations,

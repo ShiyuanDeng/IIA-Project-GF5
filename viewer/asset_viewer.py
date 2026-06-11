@@ -1615,6 +1615,36 @@ def apply_smplx_hand_pose(
     return posed
 
 
+SHOULDER_ARMS_FORWARD_DEGREES: dict[str, tuple[float, float, float]] = {
+    # Conservative render-time correction for clothed avatars whose sleeves get
+    # pulled into the torso by imperfect transferred skinning weights.
+    # Right-side values are preserved as correct; left side is mirrored.
+    "left_collar": (-2.0, 18.249, -0.05),
+    "right_collar": (-2.0, -18.249, 0.05),
+    "left_shoulder": (35.0, -4.53, -0.47),
+    "right_shoulder": (35.0, 4.53, 0.47),
+    "left_elbow": (11.44, -22.49, 10.346),
+    "right_elbow": (11.44, 22.49, -10.346),
+}
+
+def apply_shoulder_mask(
+    asset: AssetData,
+    local_rotations: list[Mat3f],
+    arms_forward_weight: float,
+) -> list[Mat3f]:
+    weight = max(0.0, min(1.0, float(arms_forward_weight)))
+    if weight <= 1e-6:
+        return local_rotations
+    posed = [np.asarray(r, dtype=np.float32).copy() for r in local_rotations]
+    for joint_name, degrees in SHOULDER_ARMS_FORWARD_DEGREES.items():
+        joint_index = asset.joint_lookup.get(joint_name)
+        if joint_index is None:
+            continue
+        target_rotation = _euler_xyz_deg_to_matrix(*degrees)
+        posed[joint_index] = posed[joint_index] @ _scale_rotation(target_rotation, weight)
+    return posed
+
+
 def pose_sample_to_asset_local_rotations(asset: AssetData, pose_sample: PoseSample) -> list[Mat3f]:
     if len(pose_sample.local_rotations) != len(get_profile(pose_sample.profile_name).joint_names):
         raise ValueError(

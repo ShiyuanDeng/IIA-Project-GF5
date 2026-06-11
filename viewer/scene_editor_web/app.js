@@ -83,6 +83,7 @@ const ROOT_CONTRACT_LABELS = {
   native_travel: "original travel",
 };
 const HAND_POSES = new Set(["natural", "fist"]);
+const SHOULDER_MASKS = new Set(["normal", "arms_forward"]);
 const COURSE_BODY_JOINTS = [
   "pelvis",
   "left_hip",
@@ -416,6 +417,7 @@ function normalizeEditorScene() {
       clip.trim_start = normalizedClipTrimStart(clip, motion);
       if (hasClipTrimEndValue(clip)) clip.trim_end = normalizedClipTrimEnd(clip, motion);
       clip.hand_pose = normalizedHandPose(clip.hand_pose);
+      clip.shoulder_mask = normalizedShoulderMask(clip.shoulder_mask);
       clip.blend_in = normalizedClipBlend(clip, "blend_in");
       clip.blend_out = normalizedClipBlend(clip, "blend_out");
     });
@@ -425,6 +427,11 @@ function normalizeEditorScene() {
 function normalizedHandPose(value) {
   const text = String(value || "natural").trim().toLowerCase();
   return HAND_POSES.has(text) ? text : "natural";
+}
+
+function normalizedShoulderMask(value) {
+  const text = String(value || "normal").trim().toLowerCase();
+  return SHOULDER_MASKS.has(text) ? text : "normal";
 }
 
 function normalizeCameraPosition(value, fallback = [0, 0, 0]) {
@@ -468,12 +475,19 @@ function hasCharacterId(id) {
   return app.scene.characters.some((character) => character.id === id);
 }
 
+function characterHiddenAfterValue(character) {
+  const raw = character?.hidden_after;
+  if (raw === undefined || raw === null || raw === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 function isCharacterHidden(characterOrId) {
   const character = typeof characterOrId === "string" ? characterById(characterOrId) : characterOrId;
   const id = character?.id;
   if (id && app.hiddenCharacterIds.has(id)) return true;
-  const hiddenAfter = Number(character?.hidden_after);
-  return Number.isFinite(hiddenAfter) && app.currentTime > hiddenAfter + 1e-6;
+  const hiddenAfter = characterHiddenAfterValue(character);
+  return hiddenAfter !== null && app.currentTime > hiddenAfter + 1e-6;
 }
 
 function pruneHiddenCharacters() {
@@ -3832,13 +3846,13 @@ function renderCharacterInspector(panel, selection) {
       <span class="color-swatch-chip"></span>
     </button>
   `).join("");
-  const hiddenAfter = Number(character.hidden_after);
-  const hideStatus = Number.isFinite(hiddenAfter) ? `Hidden after ${hiddenAfter.toFixed(2)}s` : "Visible entire scene";
+  const hiddenAfter = characterHiddenAfterValue(character);
+  const hideStatus = hiddenAfter !== null ? `Hidden after ${hiddenAfter.toFixed(2)}s` : "Visible entire scene";
   panel.innerHTML = `
     <div class="field"><label>Name</label><input id="charLabel" value="${escapeHtml(character.label)}"></div>
     <div class="field"><label>Color</label><div class="color-preset-grid">${colorButtons}</div></div>
     <div class="field"><label><input id="charTintAvatarColors" type="checkbox" ${character.tint_avatar_colors === false ? "" : "checked"}> Tint avatar/proxy colors</label></div>
-    <div class="field"><label>Visibility</label><div class="button-row"><button id="hideCharacterAfterPlayhead">Hide After Playhead</button><button id="clearCharacterHide" ${Number.isFinite(hiddenAfter) ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(hideStatus)}</div></div>
+    <div class="field"><label>Visibility</label><div class="button-row"><button id="hideCharacterAfterPlayhead">Hide After Playhead</button><button id="clearCharacterHide" ${hiddenAfter !== null ? "" : "disabled"}>Clear</button></div><div class="readonly-value">${escapeHtml(hideStatus)}</div></div>
     <div class="field"><label>Preview proxy</label><select id="charProxy">${proxyOptionsHtml(character)}</select></div>
     <div class="field"><label>Final avatar</label><select id="charAvatar">${avatarOptionsHtml(character)}</select></div>
   `;
@@ -3912,6 +3926,7 @@ function renderClipInspector(panel, selection) {
     </div>
     <div class="field"><label>Root travel</label><select id="clipRoot"><option value="path" ${clip.root_mode === "path" ? "selected" : ""}>Follow scene path</option><option value="native" ${clip.root_mode === "native" ? "selected" : ""}>Use original travel</option></select></div>
     <div class="field"><label>Hand pose</label><select id="clipHandPose"><option value="natural" ${normalizedHandPose(clip.hand_pose) === "natural" ? "selected" : ""}>Natural</option><option value="fist" ${normalizedHandPose(clip.hand_pose) === "fist" ? "selected" : ""}>Fist</option></select></div>
+    <div class="field"><label>Shoulder mask</label><select id="clipShoulderMask"><option value="normal" ${normalizedShoulderMask(clip.shoulder_mask) === "normal" ? "selected" : ""}>Normal</option><option value="arms_forward" ${normalizedShoulderMask(clip.shoulder_mask) === "arms_forward" ? "selected" : ""}>Arms forward</option></select></div>
     <div class="button-row">
       <button id="duplicateClip">Duplicate</button>
     </div>
@@ -3938,6 +3953,7 @@ function renderClipInspector(panel, selection) {
   $("#clipBlendOut").addEventListener("change", (event) => { pushUndoSnapshot(); clip.blend_out = clamp(Number(event.target.value) || 0, 0, clip.duration); renderAll(); });
   $("#clipRoot").addEventListener("change", (event) => { pushUndoSnapshot(); clip.root_mode = event.target.value; renderAll(); });
   $("#clipHandPose").addEventListener("change", (event) => { pushUndoSnapshot(); clip.hand_pose = normalizedHandPose(event.target.value); renderAll(); });
+  $("#clipShoulderMask").addEventListener("change", (event) => { pushUndoSnapshot(); clip.shoulder_mask = normalizedShoulderMask(event.target.value); renderAll(); });
   $("#duplicateClip").addEventListener("click", () => duplicateClip(character, clip));
 }
 
@@ -4729,6 +4745,7 @@ function insertClipOnCharacter(character, label, startTime) {
     trim_end: null,
     root_mode: defaultRootModeForMotion(motion),
     hand_pose: "natural",
+    shoulder_mask: "normal",
     blend_in: DEFAULT_CLIP_BLEND_SECONDS,
     blend_out: DEFAULT_CLIP_BLEND_SECONDS,
   };

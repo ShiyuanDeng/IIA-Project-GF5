@@ -32,6 +32,11 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - Character inspector now has `Hide After Playhead` and `Clear` controls.
   - The saved `hidden_after` value hides that character in web preview, draft/proxy render, and final avatar render after the selected time.
   - This is a lightweight visibility cutoff rather than a full visibility keyframe track.
+  - Fixed unset `hidden_after: null` values being interpreted as `0.0` seconds in the browser editor because `Number(null) === 0`.
+- Added per-clip shoulder mask control.
+  - Clip inspector now has `Shoulder mask` with `Normal` and `Arms forward`.
+  - The setting is stored per motion clip, like `hand_pose`.
+  - Existing clips default to `normal`.
 - Added scene-level `Insert Time` action.
   - Available from the scene inspector.
   - Inserts time at the current playhead by a prompted number of seconds.
@@ -81,6 +86,10 @@ This file summarizes the local changes added on top of the original GF5 scene re
 - Draft render selects each character's configured `proxy_asset` where available.
 - Draft/proxy render respects each character's `tint_avatar_colors` flag.
 - Draft/proxy and final avatar renders skip characters after their `hidden_after` time.
+- Final avatar rendering applies the per-clip shoulder mask.
+  - `arms_forward` blends in a conservative collar/shoulder/elbow correction during final export.
+  - The correction uses the same clip transition/blend windows as `hand_pose`.
+  - It is intended as a practical mask for clothed avatars whose sleeves collapse into the torso.
 - Draft and final avatar renders composite background images.
   - `sky_image` is rendered as world-space overhead sky geometry rather than a camera-facing screen plate.
     - `load_background_plate` always returns a flat colour base; the sky image is never applied as a full-frame screen-space layer.
@@ -178,12 +187,20 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - This keeps the elbow/wrist placement aligned with the SMPL-24/course-motion convention.
   - GF5 prefers packaged `animation_lowres.obj` and `animation_lowres_smplx55_skinning_weights.npz`.
   - GF5 still has a fallback runtime A-pose-to-T-pose path for older avatar packages that only have `smplx_mesh.obj`.
+- Added arm/torso skinning cleanup to `/home/drdeng/UP2You/tools/package_gf5_avatar.py`.
+  - The packer now detects sleeve/arm vertices near the shoulder-elbow and elbow-wrist segments in SMPL native rest-pose coordinates.
+  - For those outward arm vertices, excessive pelvis/spine/chest/neck/shoulder weight is suppressed and redistributed onto the relevant arm chain.
+  - The cleanup is applied to both the existing 24-joint `animation_lowres_skinning_weights.npz` output and the 55-joint `animation_lowres_smplx55_skinning_weights.npz` output.
+  - This targets the failure mode where clothing arms collapse inward because nearest-vertex weight transfer blends sleeve vertices with torso/chest weights.
 - Regenerated local avatar packages for:
   - `libraries/avatars/Ivan`
   - `libraries/avatars/SalaryMan_1`
   - `libraries/avatars/SalaryMan_2`
   - `libraries/avatars/Sean`
   - `libraries/avatars/Zohaib`
+- Regenerated the active scene avatar packages after the arm/torso cleanup:
+  - `libraries/avatars/Wushi`
+  - `libraries/avatars/terracotta`
 - Generated new avatar packages via UP2You inference + `tools/package_gf5_avatar.py`:
   - `libraries/avatars/Wushi` — input images from `UP2You/Inputs/Wushi/`
   - `libraries/avatars/terracotta` — input images from `UP2You/Inputs/terracotta/`

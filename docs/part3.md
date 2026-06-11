@@ -114,6 +114,10 @@ The [GF5 UP2You demo](https://gf5-up2you.elliottwu.com) creates a custom
 virtual character for rendering using
 [UP2You](https://github.com/zcai0612/UP2You).
 
+See [UP2You to GF5 Pipeline](up2you_pipeline.md) for the expected output
+layout and what the GF5 packaging step does to make the reconstruction usable
+in the scene editor.
+
 ![Screenshot of the 3D human reconstruction demo used to create a downloadable character package.](assets/3d_human_recon_demo.png)
 
 Downloaded avatar packages go in `libraries/avatars/`. Extract each ZIP into its

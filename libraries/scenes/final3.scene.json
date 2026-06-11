@@ -548,8 +548,9 @@
       "label": "Observer",
       "color": "#d6a72f",
       "tint_avatar_colors": true,
+      "hidden_after": null,
       "proxy_asset": "SMPL-24 Proxy",
-      "avatar_asset": "UP2You: terracotta",
+      "avatar_asset": "SMPL-X: terracotta",
       "track": [
         {
           "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward.",
@@ -558,7 +559,7 @@
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
-          "hand_pose": "natural",
+          "hand_pose": "fist",
           "blend_in": 0.45,
           "blend_out": 0.45
         },
@@ -569,7 +570,7 @@
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
-          "hand_pose": "natural",
+          "hand_pose": "fist",
           "blend_in": 0.45,
           "blend_out": 0.45
         },
@@ -591,7 +592,7 @@
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
-          "hand_pose": "natural",
+          "hand_pose": "fist",
           "blend_in": 0.45,
           "blend_out": 0.45
         },
@@ -602,7 +603,7 @@
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
-          "hand_pose": "natural",
+          "hand_pose": "fist",
           "blend_in": 0.45,
           "blend_out": 0.45
         },
@@ -1120,8 +1121,9 @@
       "label": "Ivan",
       "color": "#2f7f7b",
       "tint_avatar_colors": true,
+      "hidden_after": null,
       "proxy_asset": "SMPL-24 Proxy",
-      "avatar_asset": "UP2You: Wushi",
+      "avatar_asset": "SMPL-X: Wushi",
       "track": [
         {
           "clip": "Custom: HY-Motion: A person walks forward slowly in a low fighting stance, knees bent, both fists raised to chin height, elbows tucked in, weight shifting side to side with each step, moving cautiously forward. (2)",
@@ -1130,7 +1132,7 @@
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
-          "hand_pose": "natural",
+          "hand_pose": "fist",
           "blend_in": 0.45,
           "blend_out": 0.45
         },
@@ -1152,7 +1154,7 @@
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
-          "hand_pose": "natural",
+          "hand_pose": "fist",
           "blend_in": 0.45,
           "blend_out": 0.45
         },
@@ -1207,7 +1209,7 @@
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
-          "hand_pose": "natural",
+          "hand_pose": "fist",
           "blend_in": 0.45,
           "blend_out": 0.45
         },
@@ -1218,7 +1220,7 @@
           "trim_start": 0.0,
           "trim_end": null,
           "root_mode": "path",
-          "hand_pose": "natural",
+          "hand_pose": "fist",
           "blend_in": 0.45,
           "blend_out": 0.45
         },
@@ -1542,6 +1544,7 @@
       "label": "Avatar 3",
       "color": "#4e68b8",
       "tint_avatar_colors": false,
+      "hidden_after": 6.722531,
       "proxy_asset": "Leaf1",
       "avatar_asset": "Blocky: Leaf1",
       "track": [],

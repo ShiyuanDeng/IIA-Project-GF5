@@ -828,6 +828,7 @@ def normalize_track(
                 "trim_end": normalize_optional_float(raw_clip.get("trim_end")),
                 "root_mode": str(raw_clip.get("root_mode", "path")) if str(raw_clip.get("root_mode", "path")) in {"path", "native"} else "path",
                 "hand_pose": normalize_hand_pose(raw_clip.get("hand_pose")),
+                "shoulder_mask": normalize_shoulder_mask(raw_clip.get("shoulder_mask")),
                 "blend_in": round(blend_in, 6),
                 "blend_out": round(blend_out, 6),
                 "_legacy_root_start": raw_clip.get("root_start"),
@@ -846,6 +847,11 @@ def normalize_track(
 def normalize_hand_pose(value: Any) -> str:
     text = str(value or "natural").strip().lower()
     return text if text in {"natural", "fist"} else "natural"
+
+
+def normalize_shoulder_mask(value: Any) -> str:
+    text = str(value or "normal").strip().lower()
+    return text if text in {"normal", "arms_forward"} else "normal"
 
 
 def normalize_optional_float(value: Any) -> float | None:
