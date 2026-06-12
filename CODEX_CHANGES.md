@@ -46,10 +46,17 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - Background fields include `sky_image`, `floor_image`, `wall_front_image`, `wall_back_image`, `wall_left_image`, and `wall_right_image`.
   - Existing legacy `background.image_path` values are migrated to `sky_image`.
   - Individual background slots can be uploaded or cleared from the web editor.
+  - Original GF5 scene background support was limited to `background.color`, optional `background.image_path`, `show_grid`, and `show_floor`.
+    - The older Viser scene editor could set a flat viewer background image via `server.scene.set_background_image(...)`.
+    - The older web preview/final render path used the flat background color and floor/grid helpers; it did not define a six-sided projection room.
 - Added one-shot background set import.
   - `Import Set` accepts multiple PNG/JPG/JPEG/WEBP files in one selection.
   - Files named `sky`, `floor`, `front`, `back`, `left`, and `right` are mapped to the matching background slots.
   - Background upload accepts up to 64 MB per batch and 10 MB per individual image.
+  - Upload/import does not create projection geometry.
+    - The scene web server only writes image files into `viewer/scene_editor_web/backgrounds/` and returns `/backgrounds/...` URLs.
+    - The browser stores those URLs in the scene background fields.
+    - Projection planes are built later at preview/render time.
 - Added a `Rotate imports 180` background-import toggle.
   - When enabled, individual background uploads and `Import Set` rotate image pixels before upload.
   - The corrected image is stored in `viewer/scene_editor_web/backgrounds/`, so preview and export use the same orientation.
@@ -91,6 +98,14 @@ This file summarizes the local changes added on top of the original GF5 scene re
   - The correction uses the same clip transition/blend windows as `hand_pose`.
   - It is intended as a practical mask for clothed avatars whose sleeves collapse into the torso.
 - Draft and final avatar renders composite background images.
+  - The six-image "room" projection system was added on top of the original flat background/floor support; it was not already defined in the original repo.
+  - The floor, wall, and sky projection planes are generated procedurally from the current scene bounds.
+    - The renderer computes `center, radius = scene_center_and_radius(scene)`.
+    - The room half-size is `extent = ceil(radius + 1)`, clamped to at least 1 m in final render.
+    - Wall height is `max(2.8, extent * 0.9)`.
+    - The floor plane is placed at `z = 0`.
+    - Four wall planes are placed at `center.x/y +/- extent`.
+    - The sky uses a larger overhead plane plus four trapezoid bands from wall tops to the sky plane.
   - `sky_image` is rendered as world-space overhead sky geometry rather than a camera-facing screen plate.
     - `load_background_plate` always returns a flat colour base; the sky image is never applied as a full-frame screen-space layer.
     - The sky uses a ceiling plane plus four trapezoidal upper bands bridging down to the tops of the wall planes.
